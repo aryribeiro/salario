@@ -156,6 +156,20 @@ export async function GET(request: Request) {
     );
   }
 
+  /**
+   * Teto de vinte anos. Nenhum cálculo de mora salarial precisa de mais que
+   * isso, e sem o teto um único pedido faria o servidor baixar mais de um
+   * século de série a cada chamada não cacheada.
+   */
+  const meses = (Number(ate.slice(0, 4)) - Number(de.slice(0, 4))) * 12 +
+    (Number(ate.slice(5, 7)) - Number(de.slice(5, 7))) + 1;
+  if (meses > 240) {
+    return NextResponse.json(
+      { erro: "O período pedido passa de vinte anos. Reduza o intervalo da consulta." },
+      { status: 400 },
+    );
+  }
+
   const chave = `${pedido}:${de}:${ate}`;
   const guardado = ler(chave);
   if (guardado?.fresca) {
