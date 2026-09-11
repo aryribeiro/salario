@@ -184,11 +184,15 @@ export function Resumo({
   aoBaixar,
   gerando,
   podeBaixar,
+  faltaIdentificacao,
+  aoCorrigirIdentificacao,
 }: {
   apuracao: Apuracao;
   aoBaixar: () => void;
   gerando: boolean;
   podeBaixar: boolean;
+  faltaIdentificacao: boolean;
+  aoCorrigirIdentificacao: () => void;
 }) {
   const { parametros } = apuracao;
   const nada = apuracao.competencias.length === 0 && apuracao.obrigacoes.length === 0;
@@ -242,11 +246,24 @@ export function Resumo({
         <Botao aparencia="primario" aoClicar={aoBaixar} desabilitado={!podeBaixar || gerando}>
           {gerando ? "Gerando memorial..." : "Baixar memorial em PDF"}
         </Botao>
-        {!podeBaixar && (
-          <p className="text-xs text-suave">
-            Informe pelo menos um valor devido para liberar o memorial.
-          </p>
-        )}
+        {!podeBaixar &&
+          (nada ? (
+            <p className="text-xs text-suave">
+              Informe pelo menos um valor devido para liberar o memorial.
+            </p>
+          ) : faltaIdentificacao ? (
+            <div className="rounded-xl border border-atencao/40 bg-atencao-suave p-3">
+              <p className="text-[13px] text-texto">
+                Falta dizer de quem é este cálculo. O memorial só sai com o nome e o cargo do
+                trabalhador e com a empresa e o CNPJ de quem deve.
+              </p>
+              <div className="mt-2">
+                <Botao tamanho="pequeno" aoClicar={aoCorrigirIdentificacao}>
+                  Preencher agora
+                </Botao>
+              </div>
+            </div>
+          ) : null)}
       </div>
 
       {nada && (

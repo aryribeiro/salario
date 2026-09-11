@@ -11,11 +11,15 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "@cantoo/pdf-lib";
 
 import { formatarData, formatarCompetencia } from "./data";
+import { formatarDocumento } from "./documentos";
 import { formatarMoeda, formatarNumero, formatarPercentual } from "./dinheiro";
 import { rotuloDaRegiao } from "./regiao";
 import type { Apuracao, CompetenciaApurada, ObrigacaoApurada } from "./tipos";
 
 const A4 = { largura: 595.28, altura: 841.89 };
+
+/** Endereço público do aplicativo, impresso no rodapé de toda página. */
+const ENDERECO = process.env.NEXT_PUBLIC_SITE_URL ?? "https://salario2026.vercel.app";
 const MARGEM = { esquerda: 46, direita: 46, topo: 54, base: 62 };
 const LARGURA_UTIL = A4.largura - MARGEM.esquerda - MARGEM.direita;
 
@@ -387,7 +391,7 @@ function secaoIdentificacao(p: Pincel, apuracao: Apuracao) {
   titulo(p, "1. Identificação");
   paresDeDados(p, [
     ["EMPREGADOR", id.empresa || "não informado"],
-    ["CNPJ", id.cnpj || "não informado"],
+    ["CNPJ", id.cnpj ? formatarDocumento(id.cnpj) : "não informado"],
     ["EMPREGADO", id.empregado || "não informado"],
     ["CARGO", id.cargo || "não informado"],
     ["BASE SALARIAL INFORMADA", id.baseSalarial === "bruto" ? "salário bruto" : "salário líquido"],
@@ -918,6 +922,17 @@ function rodapes(p: Pincel) {
       size: 7.2,
       font: p.regular,
       color: TINTA.suave,
+    });
+    // Quem receber o documento precisa poder refazer a conta: o endereço do
+    // aplicativo vai em todas as páginas, inclusive nas que forem impressas soltas.
+    const endereco = sanear(`Refaça ou confira este cálculo em ${ENDERECO}`);
+    const le = p.regular.widthOfTextAtSize(endereco, 7.2);
+    pagina.drawText(endereco, {
+      x: (A4.largura - le) / 2,
+      y: MARGEM.base - 41,
+      size: 7.2,
+      font: p.regular,
+      color: TINTA.marca,
     });
   });
 }

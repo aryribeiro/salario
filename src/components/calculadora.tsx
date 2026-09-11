@@ -13,6 +13,7 @@ import {
   type DataISO,
 } from "@/lib/data";
 import { formatarMoeda } from "@/lib/dinheiro";
+import { formatarDocumento, limparDocumento, problemaNoDocumento } from "@/lib/documentos";
 import { apurarFGTS, type EncargoFGTS } from "@/lib/fgts";
 import { apurar, mesesNecessarios } from "@/lib/motor";
 import {
@@ -361,9 +362,10 @@ function TrocaDeTema() {
 
 /* ------------------------------------------------------------------- abas */
 
-type Aba = "salario" | "ferias" | "decimo" | "fgts" | "criterios";
+type Aba = "identificacao" | "salario" | "ferias" | "decimo" | "fgts" | "criterios";
 
 const ABAS: { valor: Aba; rotulo: string; icone: string }[] = [
+  { valor: "identificacao", rotulo: "Quem", icone: "🧑" },
   { valor: "salario", rotulo: "Salário", icone: "📅" },
   { valor: "ferias", rotulo: "Férias", icone: "🏖️" },
   { valor: "decimo", rotulo: "13º salário", icone: "🎁" },
@@ -375,7 +377,7 @@ const ABAS: { valor: Aba; rotulo: string; icone: string }[] = [
 
 export function Calculadora() {
   const [estado, setEstado] = useState<Estado>(estadoInicial);
-  const [aba, setAba] = useState<Aba>("salario");
+  const [aba, setAba] = useState<Aba>("identificacao");
   const [serie, setSerie] = useState<Record<string, number>>({});
   const [serieJuros, setSerieJuros] = useState<Record<string, number>>({});
   const [statusJuros, setStatusJuros] = useState<"ocioso" | "carregando" | "pronto" | "erro">(
@@ -418,6 +420,11 @@ export function Calculadora() {
           // inicializador do estado quebraria a hidratação.
           // eslint-disable-next-line react-hooks/set-state-in-effect
           setEstado({ ...estadoInicial(), ...salvo });
+          if (salvo.identificacao?.empregado?.trim() && salvo.identificacao?.cargo?.trim()) {
+            // Quem já identificou o trabalhador não precisa passar por essa
+            // aba de novo: volta direto para onde o trabalho acontece.
+            setAba("salario");
+          }
         }
       }
     } catch {
@@ -663,7 +670,17 @@ export function Calculadora() {
 
   /* ------------------------------------------------------------------ PDF */
 
-  const podeBaixar = apuracao.competencias.length + apuracao.obrigacoes.length > 0;
+  /**
+   * O memorial identifica uma pessoa: sem nome e cargo ele vira um papel com
+   * números soltos, que não serve para negociar nem para instruir nada.
+   */
+  const identificacaoIncompleta =
+    !estado.identificacao.empregado.trim() ||
+    !estado.identificacao.cargo.trim() ||
+    !estado.identificacao.empresa.trim() ||
+    problemaNoDocumento(estado.identificacao.cnpj) !== null;
+  const temParcelas = apuracao.competencias.length + apuracao.obrigacoes.length > 0;
+  const podeBaixar = temParcelas && !identificacaoIncompleta;
 
   const baixarPdf = useCallback(async () => {
     setGerando(true);
@@ -755,6 +772,7 @@ export function Calculadora() {
                 ultimoConteudo.current = "";
                 setConflito(null);
                 setEstado(estadoInicial());
+                setAba("identificacao");
                 try {
                   localStorage.removeItem(CHAVE_ARMAZENAMENTO);
                 } catch {
@@ -846,6 +864,9 @@ export function Calculadora() {
             </Aviso>
           ))}
 
+          {aba === "identificacao" && (
+            <AbaIdentificacao estado={estado} alterar={alterar} cobrar={identificacaoIncompleta} />
+          )}
           {aba === "salario" && <AbaSalario estado={estado} alterar={alterar} />}
           {aba === "ferias" && <AbaFerias estado={estado} alterar={alterar} />}
           {aba === "decimo" && <AbaDecimo estado={estado} alterar={alterar} />}
@@ -868,6 +889,8 @@ export function Calculadora() {
             aoBaixar={baixarPdf}
             gerando={gerando}
             podeBaixar={podeBaixar}
+            faltaIdentificacao={identificacaoIncompleta}
+            aoCorrigirIdentificacao={() => setAba("identificacao")}
           />
           {erroPdf && (
             <div className="mt-3">
@@ -1440,17 +1463,6 @@ function AbaCriterios({
             valor={estado.dataApuracao}
             aoMudar={(v) => alterar({ dataApuracao: v })}
           />
-          <Selecao
-            rotulo="O valor digitado é"
-            valor={estado.identificacao.baseSalarial}
-            aoMudar={(v) =>
-              alterar({ identificacao: { ...estado.identificacao, baseSalarial: v } })
-            }
-            opcoes={[
-              { valor: "liquido", rotulo: "Líquido, o que cai na conta" },
-              { valor: "bruto", rotulo: "Bruto, antes dos descontos" },
-            ]}
-          />
         </Grade>
       </Cartao>
 
@@ -1707,43 +1719,122 @@ function AbaCriterios({
         </div>
       </Cartao>
 
+    </div>
+  );
+}
+
+/* ------------------------------------------------------ aba: identificação */
+
+function AbaIdentificacao({
+  estado,
+  alterar,
+  cobrar,
+}: {
+  estado: Estado;
+  alterar: (mudanca: Partial<Estado>) => void;
+  cobrar: boolean;
+}) {
+  const id = estado.identificacao;
+  const trocar = (mudanca: Partial<Estado["identificacao"]>) =>
+    alterar({ identificacao: { ...id, ...mudanca } });
+
+  return (
+    <div className="space-y-4">
       <Cartao
-        titulo="Identificação"
-        descricao="Aparece no memorial. Preencher é opcional e nada sai deste navegador."
+        titulo="Trabalhador"
+        descricao="Nome e cargo saem impressos no memorial, por isso são obrigatórios."
+        destaque
       >
         <Grade>
           <CampoTexto
-            rotulo="Empresa"
-            valor={estado.identificacao.empresa}
-            aoMudar={(v) => alterar({ identificacao: { ...estado.identificacao, empresa: v } })}
-          />
-          <CampoTexto
-            rotulo="CNPJ"
-            valor={estado.identificacao.cnpj}
-            aoMudar={(v) => alterar({ identificacao: { ...estado.identificacao, cnpj: v } })}
-          />
-          <CampoTexto
-            rotulo="Empregado"
-            valor={estado.identificacao.empregado}
-            aoMudar={(v) => alterar({ identificacao: { ...estado.identificacao, empregado: v } })}
+            rotulo="Nome do trabalhador"
+            valor={id.empregado}
+            aoMudar={(v) => trocar({ empregado: v })}
+            placeholder="nome completo, como no contrato"
+            erro={cobrar && !id.empregado.trim() ? "Informe o nome do trabalhador." : undefined}
+            ajuda="obrigatório"
           />
           <CampoTexto
             rotulo="Cargo"
-            valor={estado.identificacao.cargo}
-            aoMudar={(v) => alterar({ identificacao: { ...estado.identificacao, cargo: v } })}
+            valor={id.cargo}
+            aoMudar={(v) => trocar({ cargo: v })}
+            placeholder="função registrada na carteira"
+            erro={cobrar && !id.cargo.trim() ? "Informe o cargo." : undefined}
+            ajuda="obrigatório"
+          />
+        </Grade>
+
+        <div className="mt-4">
+          <Selecao
+            rotulo="Os valores que você vai digitar são"
+            valor={id.baseSalarial}
+            aoMudar={(v) => trocar({ baseSalarial: v })}
+            opcoes={[
+              { valor: "liquido", rotulo: "Líquido, o que cai na conta" },
+              { valor: "bruto", rotulo: "Bruto, antes dos descontos" },
+            ]}
+            ajuda="aparece no memorial, para quem lê saber o que foi somado"
+          />
+        </div>
+      </Cartao>
+
+      <Cartao
+        titulo="Empresa"
+        descricao="Quem deve. Sem isso o memorial não aponta para ninguém."
+        destaque
+      >
+        <Grade>
+          <CampoTexto
+            rotulo="Razão social ou nome da empresa"
+            valor={id.empresa}
+            aoMudar={(v) => trocar({ empresa: v })}
+            placeholder="como consta no contrato social"
+            erro={cobrar && !id.empresa.trim() ? "Informe o nome da empresa." : undefined}
+            ajuda="obrigatório"
           />
           <CampoTexto
+            rotulo="CNPJ"
+            valor={id.cnpj}
+            aoMudar={(v) =>
+              trocar({
+                cnpj: [11, 14].includes(limparDocumento(v).length) ? formatarDocumento(v) : v,
+              })
+            }
+            placeholder="00.000.000/0000-00"
+            erro={cobrar || id.cnpj.trim() ? (problemaNoDocumento(id.cnpj) ?? undefined) : undefined}
+            ajuda="obrigatório; aceita CPF quando o empregador é pessoa física"
+          />
+        </Grade>
+        <div className="mt-4">
+          <NotaLegal titulo="Por que o número é conferido">
+            O dígito verificador é calculado aqui mesmo, pelo módulo 11. Desde 31 de julho de 2026
+            a Receita Federal também emite CNPJ alfanumérico, com letras nas doze primeiras
+            posições, e o cálculo usa o valor de cada caractere na tabela ASCII menos 48. Os dois
+            formatos são aceitos. Um número errado transformaria o memorial em papel sem valor.
+          </NotaLegal>
+        </div>
+      </Cartao>
+
+      <Cartao titulo="Quem preparou" descricao="Opcional, mas ajuda quem for ler o documento.">
+        <Grade>
+          <CampoTexto
             rotulo="Quem está calculando"
-            valor={estado.identificacao.responsavel}
-            aoMudar={(v) => alterar({ identificacao: { ...estado.identificacao, responsavel: v } })}
+            valor={id.responsavel}
+            aoMudar={(v) => trocar({ responsavel: v })}
+            placeholder="seu nome ou o setor"
           />
           <CampoTexto
             rotulo="Observações"
-            valor={estado.identificacao.observacoes}
-            aoMudar={(v) => alterar({ identificacao: { ...estado.identificacao, observacoes: v } })}
+            valor={id.observacoes}
+            aoMudar={(v) => trocar({ observacoes: v })}
           />
         </Grade>
       </Cartao>
+
+      <Aviso tom="neutro">
+        Nada disso sai do seu navegador. O memorial é montado neste computador e os dados não
+        chegam a servidor algum.
+      </Aviso>
     </div>
   );
 }
