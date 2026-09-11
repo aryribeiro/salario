@@ -50,6 +50,11 @@ Nome, salário, datas e valores ficam apenas no navegador de quem calcula, e o P
 no próprio computador. A única chamada externa é a consulta do índice de inflação ao Banco
 Central, que não leva nenhum dado do usuário.
 
+O rascunho fica guardado no navegador entre uma visita e outra. Com o aplicativo aberto em
+mais de uma aba, a gravação de uma aba não apaga o trabalho da outra em silêncio: a aba que
+tem edição própria avisa e deixa a escolha com o usuário, e a aba que ainda não foi editada
+adota a versão mais recente sem incomodar.
+
 ## Fontes
 
 Toda regra do motor de cálculo nasce de uma destas fontes. Os endereços foram verificados em

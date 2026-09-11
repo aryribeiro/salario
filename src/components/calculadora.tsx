@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import {
   chaveMes,
@@ -389,8 +389,19 @@ export function Calculadora() {
   const [gerando, setGerando] = useState(false);
   const [erroPdf, setErroPdf] = useState("");
   const [carregado, setCarregado] = useState(false);
+  const [conflito, setConflito] = useState<{ estado: Estado; conteudo: string } | null>(null);
+
+  /**
+   * Marca que esta aba tem trabalho do usuário. Serve para decidir o que fazer
+   * quando outra aba grava por cima: sem edição aqui, a versão de lá é adotada
+   * em silêncio; com edição aqui, quem decide é o usuário.
+   */
+  const editadoAqui = useRef(false);
+  /** Último conteúdo que esta aba gravou ou adotou, para ignorar o próprio eco. */
+  const ultimoConteudo = useRef<string>("");
 
   const alterar = useCallback((mudanca: Partial<Estado>) => {
+    editadoAqui.current = true;
     setEstado((anterior) => ({ ...anterior, ...mudanca }));
   }, []);
 
@@ -421,13 +432,44 @@ export function Calculadora() {
     // vezes por frase. Meio segundo de espera basta para guardar só o resultado.
     const relogio = window.setTimeout(() => {
       try {
-        localStorage.setItem(CHAVE_ARMAZENAMENTO, JSON.stringify(estado));
+        const conteudo = JSON.stringify(estado);
+        ultimoConteudo.current = conteudo;
+        localStorage.setItem(CHAVE_ARMAZENAMENTO, conteudo);
       } catch {
         /* cota cheia ou navegador anônimo: seguir sem salvar */
       }
     }, 500);
     return () => window.clearTimeout(relogio);
   }, [estado, carregado]);
+
+  /**
+   * Duas abas do aplicativo abertas gravam no mesmo lugar, e sem aviso a última
+   * gravação apagaria o trabalho da outra. O navegador dispara este evento
+   * apenas nas abas que NÃO gravaram, então ele serve exatamente para isso.
+   */
+  useEffect(() => {
+    const aoMudarNoNavegador = (evento: StorageEvent) => {
+      if (evento.key !== CHAVE_ARMAZENAMENTO || !evento.newValue) return;
+      if (evento.newValue === ultimoConteudo.current) return;
+      let recebido: Estado;
+      try {
+        recebido = JSON.parse(evento.newValue) as Estado;
+      } catch {
+        return;
+      }
+      if (!recebido || !Array.isArray(recebido.salarios)) return;
+
+      if (!editadoAqui.current) {
+        // Nada a perder nesta aba: adota a versão mais recente sem incomodar.
+        ultimoConteudo.current = evento.newValue;
+        setEstado({ ...estadoInicial(), ...recebido });
+        return;
+      }
+      setConflito({ estado: recebido, conteudo: evento.newValue });
+    };
+    window.addEventListener("storage", aoMudarNoNavegador);
+    return () => window.removeEventListener("storage", aoMudarNoNavegador);
+  }, []);
 
   /* -------------------------------------------------------------- derivação */
 
@@ -697,6 +739,7 @@ export function Calculadora() {
           <Botao
             tamanho="pequeno"
             aoClicar={() => {
+              editadoAqui.current = true;
               setEstado(exemplo());
               setAba("salario");
             }}
@@ -708,6 +751,9 @@ export function Calculadora() {
             aparencia="sutil"
             aoClicar={() => {
               if (confirm("Apagar todos os dados digitados neste navegador?")) {
+                editadoAqui.current = false;
+                ultimoConteudo.current = "";
+                setConflito(null);
                 setEstado(estadoInicial());
                 try {
                   localStorage.removeItem(CHAVE_ARMAZENAMENTO);
@@ -756,6 +802,43 @@ export function Calculadora() {
               </button>
             ))}
           </nav>
+
+          {conflito && (
+            <Aviso tom="alerta" titulo="Outra aba mudou os dados deste cálculo">
+              <p>
+                O aplicativo está aberto em mais de uma aba e a outra gravou uma versão
+                diferente. Nada foi perdido: escolha qual versão vale.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Botao
+                  aparencia="primario"
+                  tamanho="pequeno"
+                  aoClicar={() => {
+                    ultimoConteudo.current = conflito.conteudo;
+                    setEstado({ ...estadoInicial(), ...conflito.estado });
+                    setConflito(null);
+                  }}
+                >
+                  Usar a versão da outra aba
+                </Botao>
+                <Botao
+                  tamanho="pequeno"
+                  aoClicar={() => {
+                    try {
+                      const conteudo = JSON.stringify(estado);
+                      ultimoConteudo.current = conteudo;
+                      localStorage.setItem(CHAVE_ARMAZENAMENTO, conteudo);
+                    } catch {
+                      /* sem armazenamento: o que está na tela continua valendo */
+                    }
+                    setConflito(null);
+                  }}
+                >
+                  Manter o que está nesta aba
+                </Botao>
+              </div>
+            </Aviso>
+          )}
 
           {avisos.map((aviso, indice) => (
             <Aviso key={indice} tom={aviso.tom}>
