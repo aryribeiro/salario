@@ -865,7 +865,13 @@ export function Calculadora() {
           ))}
 
           {aba === "identificacao" && (
-            <AbaIdentificacao estado={estado} alterar={alterar} cobrar={identificacaoIncompleta} />
+            <AbaIdentificacao
+              estado={estado}
+              alterar={alterar}
+              // Só cobra o preenchimento quando já existe cálculo para emitir:
+              // abrir a tela com quatro campos em vermelho afasta quem chegou agora.
+              cobrar={identificacaoIncompleta && temParcelas}
+            />
           )}
           {aba === "salario" && <AbaSalario estado={estado} alterar={alterar} />}
           {aba === "ferias" && <AbaFerias estado={estado} alterar={alterar} />}
