@@ -20,6 +20,8 @@ const A4 = { largura: 595.28, altura: 841.89 };
 
 /** Endereço público do aplicativo, impresso no rodapé de toda página. */
 const ENDERECO = process.env.NEXT_PUBLIC_SITE_URL ?? "https://salario2026.vercel.app";
+/** Repositório aberto: é lá que estão as fontes de cada regra deste cálculo. */
+const REPOSITORIO = "github.com/aryribeiro/salario";
 const MARGEM = { esquerda: 46, direita: 46, topo: 54, base: 62 };
 const LARGURA_UTIL = A4.largura - MARGEM.esquerda - MARGEM.direita;
 
@@ -925,7 +927,7 @@ function rodapes(p: Pincel) {
     });
     // Quem receber o documento precisa poder refazer a conta: o endereço do
     // aplicativo vai em todas as páginas, inclusive nas que forem impressas soltas.
-    const endereco = sanear(`Refaça ou confira este cálculo em ${ENDERECO}`);
+    const endereco = sanear(`Refaça este cálculo em ${ENDERECO} | Fontes e código em ${REPOSITORIO}`);
     const le = p.regular.widthOfTextAtSize(endereco, 7.2);
     pagina.drawText(endereco, {
       x: (A4.largura - le) / 2,
