@@ -10,6 +10,10 @@ comum de pagar parte do salário na data e o restante dias depois.
 
 ## O que ele faz
 
+- **Identificação primeiro.** O cálculo começa dizendo de quem ele é: nome e cargo do
+  trabalhador, razão social e CNPJ da empresa. Os quatro são obrigatórios, porque o memorial
+  serve para apontar quem deve a quem. O CNPJ é conferido pelo dígito verificador, nos
+  formatos numérico e alfanumérico, e o campo aceita CPF quando o empregador é pessoa física.
 - **Salário mensal.** Acha o 5º dia útil do mês seguinte ao trabalhado (art. 459, §1º, da
   CLT), contando o sábado como dia útil e excluindo domingos e feriados, inclusive os
   estaduais e municipais.
@@ -95,6 +99,7 @@ acesso automatizado, o que impede verificar o endereço de cada notícia.
 | Faixas do INSS e teto do salário de contribuição | [Portaria Interministerial MPS/MF 13/2026](https://www.gov.br/previdencia/pt-br/assuntos/rpps/destaques/publicada-a-portaria-interministerial-mps-mf-no-13-de-9-01-2026-que-dispoe-sobre-o-reajuste-dos-beneficios-pagos-pelo-inss-e-demais-valores) |
 | Salário mínimo de R$ 1.621,00 | [Decreto 12.797/2025](https://www.planalto.gov.br/ccivil_03/_ato2023-2026/2025/decreto/d12797.htm) |
 | Rendimentos recebidos acumuladamente | [Lei 7.713/1988, art. 12-A](https://www.planalto.gov.br/ccivil_03/leis/l7713.htm) |
+| CNPJ alfanumérico, emitido desde 31 de julho de 2026, e o dígito verificador por módulo 11 sobre o valor ASCII menos 48 | [Receita Federal, CNPJ Alfanumérico](https://www.gov.br/receitafederal/pt-br/acesso-a-informacao/acoes-e-programas/programas-e-atividades/cnpj-alfanumerico) e [cálculo dos dígitos, Serpro](https://www.serpro.gov.br/menu/noticias/videos/calculodvcnpjalfanaumerico.pdf) |
 
 Os dois exemplos publicados pela Receita Federal para a Lei 15.270/2025 são reproduzidos
 centavo a centavo pelos testes automatizados deste repositório.
