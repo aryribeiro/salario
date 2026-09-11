@@ -549,9 +549,14 @@ export function Calculadora() {
       .then(async (r) => {
         const dados = await r.json();
         if (!r.ok) throw new Error(dados?.erro ?? "falha");
-        setSerie(dados.valores ?? {});
+        const valores = (dados.valores ?? {}) as Record<string, number>;
+        setSerie(valores);
         setStatusIndice("pronto");
-        setMensagemIndice(`${dados.serieNome} — fonte: Banco Central do Brasil.`);
+        setMensagemIndice(
+          Object.keys(valores).length === 0
+            ? `${dados.aviso ?? "Ainda não há índice publicado para o período."} A correção fica em zero até a publicação.`
+            : `${dados.serieNome} — fonte: Banco Central do Brasil.`,
+        );
       })
       .catch((e: unknown) => {
         if (e instanceof DOMException && e.name === "AbortError") return;

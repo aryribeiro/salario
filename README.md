@@ -45,19 +45,71 @@ Nome, salário, datas e valores ficam apenas no navegador de quem calcula, e o P
 no próprio computador. A única chamada externa é a consulta do índice de inflação ao Banco
 Central, que não leva nenhum dado do usuário.
 
-## Base legal e tributária
+## Fontes
 
-CLT arts. 137, 145 e 459; Lei 4.090/1962 e Lei 4.749/1965; Lei 8.036/1990 arts. 15 e 22;
-Lei 8.177/1991 art. 39; Código Civil arts. 394, 397 e 406, este com a redação da Lei
-14.905/2024; Súmulas 81 e 381 do TST; ADPF 501 do STF. Sobre os juros de mora por atraso no
-pagamento de remuneração não incide imposto de renda, conforme o Tema 808 do STF, o Tema 878
-do STJ e o art. 11, XV, da Instrução Normativa RFB 1.500/2014.
+Toda regra do motor de cálculo nasce de uma destas fontes. Os endereços foram verificados em
+11 de setembro de 2026.
 
-O auxiliar de valor líquido usa a tabela do INSS da Portaria Interministerial MPS/MF 13/2026
-e a tabela do imposto de renda de 2026 com o redutor da Lei 15.270/2025.
+### Prazos e encargos
 
-Feriados regionais: Lei estadual paulista 9.497/1997 (9 de julho) e Lei municipal 14.485/2007
-(25 de janeiro, na capital).
+| Regra no aplicativo | Fonte |
+|---|---|
+| Salário até o 5º dia útil do mês seguinte (art. 459, §1º); férias dois dias antes do gozo (art. 145); dobra das férias fora do período concessivo (art. 137); mora contumaz e rescisão indireta (art. 483, "d") | [CLT, Decreto-Lei 5.452/1943](https://www.planalto.gov.br/ccivil_03/decreto-lei/del5452.htm) |
+| Décimo terceiro até 20 de dezembro | [Lei 4.090/1962](https://www.planalto.gov.br/ccivil_03/leis/l4090.htm) |
+| Primeira parcela do décimo terceiro entre fevereiro e 30 de novembro | [Lei 4.749/1965](https://www.planalto.gov.br/ccivil_03/leis/l4749.htm) |
+| Juros de mora sobre débitos trabalhistas não pagos na época própria | [Lei 8.177/1991, art. 39](https://www.planalto.gov.br/ccivil_03/leis/l8177.htm) |
+| Constituição da mora em obrigação com data certa e taxa legal de juros | [Código Civil, arts. 394, 397 e 406](https://www.planalto.gov.br/ccivil_03/leis/2002/l10406compilada.htm) |
+| Taxa legal passa a ser a Selic deduzido o IPCA, desde 30/08/2024 | [Lei 14.905/2024](https://www.planalto.gov.br/ccivil_03/_ato2023-2026/2024/lei/l14905.htm) |
+| Atraso reiterado de salários | [Decreto-Lei 368/1968](https://www.planalto.gov.br/ccivil_03/decreto-lei/del0368.htm) |
+| Depósito de 8% do FGTS e encargos do recolhimento em atraso (arts. 15 e 22) | [Lei 8.036/1990](https://www.planalto.gov.br/ccivil_03/leis/l8036consol.htm) |
+| Prazo do dia 20 e cálculo dos encargos na prática | [FGTS Digital, Ministério do Trabalho e Emprego](https://www.gov.br/trabalho-e-emprego/pt-br/servicos/empregador/fgtsdigital) |
+
+### Jurisprudência
+
+| Regra no aplicativo | Fonte |
+|---|---|
+| Correção monetária do salário pago depois do 5º dia útil, a partir do dia 1º do mês subsequente (Súmula 381); dobra dos dias gozados fora do período de concessão (Súmula 81) | [Súmulas do TST](https://www.tst.jus.br/sumulas) |
+| Férias pagas com atraso **não** dobram: a Súmula 450 do TST foi declarada inconstitucional | Supremo Tribunal Federal, ADPF 501, julgada em 16 de setembro de 2022 |
+| Índices de atualização dos créditos trabalhistas | Supremo Tribunal Federal, ADC 58 e ADC 59, julgadas em dezembro de 2020 |
+| Não incide imposto de renda sobre juros de mora por atraso no pagamento de remuneração | Supremo Tribunal Federal, Tema 808 (RE 855.091), e [Superior Tribunal de Justiça, Tema 878](https://www.stj.jus.br/sites/portalp/Paginas/Comunicacao/Noticias/17112021-Nao-ha-incidencia-de-IR-sobre-juros-de-mora-no-pagamento-de-verba-alimentar-a-pessoa-fisica--.aspx) |
+
+As decisões do Supremo aparecem pelo número do processo porque o portal do tribunal recusa
+acesso automatizado, o que impede verificar o endereço de cada notícia.
+
+### Tributos e valores de 2026
+
+| Regra no aplicativo | Fonte |
+|---|---|
+| Tabela mensal do imposto de renda, dedução por dependente e desconto simplificado | [Receita Federal, tributação de 2026](https://www.gov.br/receitafederal/pt-br/assuntos/meu-imposto-de-renda/tabelas/2026) |
+| Redutor que zera o imposto até R$ 5.000,00 e decresce até R$ 7.350,00 | [Lei 15.270/2025](https://www.planalto.gov.br/ccivil_03/_ato2023-2026/2025/lei/l15270.htm) e [exemplos oficiais de aplicação](https://www.gov.br/receitafederal/pt-br/assuntos/meu-imposto-de-renda/tabelas/exemplos-de-aplicacao-da-lei-15-270-2025) |
+| Faixas do INSS e teto do salário de contribuição | [Portaria Interministerial MPS/MF 13/2026](https://www.gov.br/previdencia/pt-br/assuntos/rpps/destaques/publicada-a-portaria-interministerial-mps-mf-no-13-de-9-01-2026-que-dispoe-sobre-o-reajuste-dos-beneficios-pagos-pelo-inss-e-demais-valores) |
+| Salário mínimo de R$ 1.621,00 | [Decreto 12.797/2025](https://www.planalto.gov.br/ccivil_03/_ato2023-2026/2025/decreto/d12797.htm) |
+| Rendimentos recebidos acumuladamente | [Lei 7.713/1988, art. 12-A](https://www.planalto.gov.br/ccivil_03/leis/l7713.htm) |
+
+Os dois exemplos publicados pela Receita Federal para a Lei 15.270/2025 são reproduzidos
+centavo a centavo pelos testes automatizados deste repositório.
+
+### Calendário
+
+| Regra no aplicativo | Fonte |
+|---|---|
+| Feriados nacionais | [Lei 662/1949, com a redação da Lei 10.607/2002](https://www.planalto.gov.br/ccivil_03/leis/2002/l10607.htm) e [Lei 9.093/1995](https://www.planalto.gov.br/ccivil_03/leis/l9093.htm) |
+| 20 de novembro como feriado nacional, a partir de 2024 | [Lei 14.759/2023](https://www.planalto.gov.br/ccivil_03/_ato2023-2026/2023/lei/l14759.htm) |
+| 9 de julho, feriado no estado de São Paulo | [Lei estadual 9.497/1997](https://www.al.sp.gov.br/repositorio/legislacao/lei/1997/lei-9497-05.03.1997.html) |
+| 25 de janeiro, feriado na capital paulista | [Lei municipal 14.485/2007](https://legislacao.prefeitura.sp.gov.br/lei-20000-de-19-de-julho-de-2007) |
+
+### Dados
+
+| Uso | Fonte |
+|---|---|
+| Variação mensal do IPCA (série 433), do INPC (série 188) e do IGP-M (série 189) | [Sistema Gerenciador de Séries Temporais do Banco Central](https://www3.bcb.gov.br/sgspub/), consultado pela [API pública](https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=json) |
+
+### O que não virou regra
+
+A multa administrativa por atraso de salário, hoje em R$ 176,03 por trabalhador prejudicado
+pela Portaria MTE 1.131/2025, é citada na interface mas não entra em nenhuma conta: ela é
+devida à União, não ao empregado. A atualização pela TR sobre o FGTS em atraso também fica de
+fora, e o memorial declara isso.
 
 ## Rodando localmente
 

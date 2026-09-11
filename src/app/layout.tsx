@@ -31,6 +31,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "pt_BR",
+    url: site,
     siteName: "Salarium Debitum",
     title: "Salarium Debitum — calculadora de salário atrasado",
     description:

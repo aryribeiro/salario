@@ -74,6 +74,23 @@ export async function GET(request: Request) {
 
   try {
     const resposta = await buscar();
+    if (resposta.status === 404) {
+      /**
+       * O Banco Central devolve 404 quando não há nenhum valor publicado no
+       * período. Isso não é falha: acontece sempre que o cálculo precisa apenas
+       * do mês corrente, cujo índice só sai semanas depois. A resposta vazia
+       * segue adiante, e o motor já avisa quais meses ficaram sem índice.
+       */
+      return NextResponse.json({
+        indice,
+        serieNome: serie.nome,
+        codigoSerie: serie.codigo,
+        fonte: "Banco Central do Brasil — Sistema Gerenciador de Séries Temporais",
+        consultadoEm: new Date().toISOString(),
+        valores: {},
+        aviso: "Ainda não há índice publicado para o período consultado.",
+      });
+    }
     if (!resposta.ok) {
       return NextResponse.json(
         { erro: `O Banco Central respondeu com status ${resposta.status}.` },
