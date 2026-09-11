@@ -128,6 +128,12 @@ describe("memorial em PDF", () => {
     writeFileSync(join(destino, "memorial.pdf"), bytes);
   });
 
+  it("corta com reticências o texto que não cabe na coluna", async () => {
+    const apuracao = apurar(competencias, parametros, { obrigacoes });
+    const bytes = await gerarMemorial(apuracao);
+    expect(bytes.byteLength).toBeGreaterThan(5_000);
+  });
+
   it("monta um nome de arquivo seguro a partir do nome do empregado", () => {
     const apuracao = apurar(competencias, parametros);
     expect(nomeDoArquivo(apuracao)).toBe(

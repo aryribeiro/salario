@@ -190,7 +190,16 @@ function desenharCelula(
   tamanho: number,
   cor: ReturnType<typeof rgb>,
 ) {
-  const conteudo = sanear(texto);
+  let conteudo = sanear(texto);
+  const disponivel = coluna.largura - 8;
+  if (fonte.widthOfTextAtSize(conteudo, tamanho) > disponivel) {
+    // Sem isto, um rótulo comprido invade a coluna vizinha e o documento
+    // passa a mentir sobre qual valor pertence a qual coluna.
+    while (conteudo.length > 1 && fonte.widthOfTextAtSize(`${conteudo}...`, tamanho) > disponivel) {
+      conteudo = conteudo.slice(0, -1);
+    }
+    conteudo = `${conteudo.trimEnd()}...`;
+  }
   const largura = fonte.widthOfTextAtSize(conteudo, tamanho);
   const px = coluna.alinhamento === "direita" ? x + coluna.largura - largura - 4 : x + 4;
   p.pagina.drawText(conteudo, { x: px, y, size: tamanho, font: fonte, color: cor });
@@ -624,12 +633,12 @@ function secaoFalhas(p: Pincel, apuracao: Apuracao) {
   );
 
   const colunas: Coluna[] = [
-    { titulo: "Parcela", largura: 110 },
-    { titulo: "Vencia em", largura: 74 },
-    { titulo: "Maior atraso", largura: 68, alinhamento: "direita" },
-    { titulo: "Devido", largura: 82, alinhamento: "direita" },
-    { titulo: "Em atraso", largura: 82, alinhamento: "direita" },
-    { titulo: "Em aberto", largura: 83, alinhamento: "direita" },
+    { titulo: "Parcela", largura: 152 },
+    { titulo: "Vencia em", largura: 66 },
+    { titulo: "Maior atraso", largura: 62, alinhamento: "direita" },
+    { titulo: "Devido", largura: 73, alinhamento: "direita" },
+    { titulo: "Em atraso", largura: 73, alinhamento: "direita" },
+    { titulo: "Em aberto", largura: 73, alinhamento: "direita" },
   ];
   tabela(
     p,
@@ -658,12 +667,12 @@ function secaoTotais(p: Pincel, apuracao: Apuracao) {
   titulo(p, "4. Resumo financeiro");
   const linhasResumo: ItemApurado[] = [...apuracao.competencias, ...apuracao.obrigacoes];
   const colunas: Coluna[] = [
-    { titulo: "Parcela", largura: 104 },
-    { titulo: "Devido", largura: 79, alinhamento: "direita" },
-    { titulo: "Pago", largura: 79, alinhamento: "direita" },
-    { titulo: "Em aberto", largura: 79, alinhamento: "direita" },
-    { titulo: "Encargos", largura: 79, alinhamento: "direita" },
-    { titulo: "Total", largura: 79, alinhamento: "direita" },
+    { titulo: "Parcela", largura: 149 },
+    { titulo: "Devido", largura: 70, alinhamento: "direita" },
+    { titulo: "Pago", largura: 70, alinhamento: "direita" },
+    { titulo: "Em aberto", largura: 70, alinhamento: "direita" },
+    { titulo: "Encargos", largura: 70, alinhamento: "direita" },
+    { titulo: "Total", largura: 70, alinhamento: "direita" },
   ];
   tabela(
     p,
