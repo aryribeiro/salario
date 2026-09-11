@@ -42,6 +42,6 @@ next-env.d.ts
 
 # playwright / capturas locais
 .playwright-mcp/
-.tmp-*.png
+.tmp-*
 
 .vercel
