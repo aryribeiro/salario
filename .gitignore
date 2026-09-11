@@ -45,3 +45,6 @@ next-env.d.ts
 .tmp-*
 
 .vercel
+
+# manual gerado a partir do README, regerado sob demanda
+Salarium-Debitum-manual.pdf
