@@ -14,7 +14,13 @@ import type { Obrigacao, Parametros } from "../tipos";
 
 const parametros: Parametros = {
   dataApuracao: "2026-03-06",
-  juros: { ativo: true, taxaMesPct: 1, fundamento: "art. 39, Lei 8.177/1991" },
+  juros: {
+    ativo: true,
+    modo: "fixa",
+    taxaMesPct: 1,
+    serie: {},
+    fundamento: "art. 39, Lei 8.177/1991",
+  },
   multa: {
     ativa: false,
     tipo: "percentual",

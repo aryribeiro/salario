@@ -23,8 +23,16 @@ export interface Competencia {
 
 export interface ConfigJuros {
   ativo: boolean;
+  /**
+   * "fixa" usa a mesma taxa em todo o período. "serie" usa a taxa de cada mês,
+   * como exige a taxa legal do art. 406 do Código Civil, que varia conforme a
+   * Selic e o IPCA do mês.
+   */
+  modo: "fixa" | "serie";
   /** Taxa ao mês, em percentual. Juros simples, proporcionais aos dias. */
   taxaMesPct: number;
+  /** Taxa mensal em %, por chave "YYYY-MM". Usada quando modo = "serie". */
+  serie: Record<string, number>;
   /** Rótulo do fundamento exibido na tela e no PDF. */
   fundamento: string;
 }

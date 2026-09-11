@@ -132,7 +132,9 @@ function estadoInicial(): Estado {
     },
     juros: {
       ativo: true,
+      modo: "fixa",
       taxaMesPct: 1,
+      serie: {},
       fundamento: "art. 39 da Lei 8.177/1991",
     },
     multa: {
@@ -375,6 +377,11 @@ export function Calculadora() {
   const [estado, setEstado] = useState<Estado>(estadoInicial);
   const [aba, setAba] = useState<Aba>("salario");
   const [serie, setSerie] = useState<Record<string, number>>({});
+  const [serieJuros, setSerieJuros] = useState<Record<string, number>>({});
+  const [statusJuros, setStatusJuros] = useState<"ocioso" | "carregando" | "pronto" | "erro">(
+    "ocioso",
+  );
+  const [mensagemJuros, setMensagemJuros] = useState("");
   const [statusIndice, setStatusIndice] = useState<"ocioso" | "carregando" | "pronto" | "erro">(
     "ocioso",
   );
@@ -410,11 +417,16 @@ export function Calculadora() {
 
   useEffect(() => {
     if (!carregado) return;
-    try {
-      localStorage.setItem(CHAVE_ARMAZENAMENTO, JSON.stringify(estado));
-    } catch {
-      /* cota cheia ou navegador anônimo: seguir sem salvar */
-    }
+    // Gravar a cada tecla digitada serializa o formulário inteiro dezenas de
+    // vezes por frase. Meio segundo de espera basta para guardar só o resultado.
+    const relogio = window.setTimeout(() => {
+      try {
+        localStorage.setItem(CHAVE_ARMAZENAMENTO, JSON.stringify(estado));
+      } catch {
+        /* cota cheia ou navegador anônimo: seguir sem salvar */
+      }
+    }, 500);
+    return () => window.clearTimeout(relogio);
   }, [estado, carregado]);
 
   /* -------------------------------------------------------------- derivação */
@@ -503,7 +515,7 @@ export function Calculadora() {
     const regionais = feriadosDaRegiao(estado.regiao, anosEnvolvidos(estado));
     return {
       dataApuracao: estado.dataApuracao,
-      juros: estado.juros,
+      juros: { ...estado.juros, serie: serieJuros },
       multa: multaSemClausula ? { ...estado.multa, ativa: false } : estado.multa,
       correcao: { ...estado.correcao, serie },
       calendario: {
@@ -515,7 +527,7 @@ export function Calculadora() {
       },
       identificacao: estado.identificacao,
     };
-  }, [estado, serie, multaSemClausula]);
+  }, [estado, serie, serieJuros, multaSemClausula]);
 
   const apuracao = useMemo(
     () => apurar(competencias, parametros, { obrigacoes, fgts: fgtsApurado }),
@@ -532,41 +544,80 @@ export function Calculadora() {
     return [...new Set([...doSalario, ...dasObrigacoes])].sort();
   }, [competencias, obrigacoes, estado.dataApuracao]);
 
-  useEffect(() => {
-    if (!estado.correcao.ativa || estado.correcao.modo !== "indice") return;
-    if (mesesDoCalculo.length === 0) return;
+  /**
+   * Busca uma série no Banco Central. A chamada só parte meio segundo depois da
+   * última tecla, e a anterior é cancelada: digitar o salário não dispara uma
+   * consulta por dígito.
+   */
+  const usarSerie = (
+    ligado: boolean,
+    indice: string,
+    aplicar: (valores: Record<string, number>) => void,
+    avisarStatus: (s: "ocioso" | "carregando" | "pronto" | "erro") => void,
+    avisarTexto: (t: string) => void,
+    textoVazio: string,
+  ) => {
+    if (!ligado || mesesDoCalculo.length === 0) return;
     const de = mesesDoCalculo[0]!;
     const ate = mesesDoCalculo[mesesDoCalculo.length - 1]!;
     const controle = new AbortController();
-    // A busca do índice é um efeito externo de verdade; avisar que ela começou
-    // é parte do mesmo ciclo e não dispara nova cascata de renderização.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setStatusIndice("carregando");
-    setMensagemIndice("");
-    fetch(`/api/indices?indice=${estado.correcao.indice}&de=${de}&ate=${ate}`, {
-      signal: controle.signal,
-    })
-      .then(async (r) => {
-        const dados = await r.json();
-        if (!r.ok) throw new Error(dados?.erro ?? "falha");
-        const valores = (dados.valores ?? {}) as Record<string, number>;
-        setSerie(valores);
-        setStatusIndice("pronto");
-        setMensagemIndice(
-          Object.keys(valores).length === 0
-            ? `${dados.aviso ?? "Ainda não há índice publicado para o período."} A correção fica em zero até a publicação.`
-            : `${dados.serieNome} — fonte: Banco Central do Brasil.`,
-        );
-      })
-      .catch((e: unknown) => {
-        if (e instanceof DOMException && e.name === "AbortError") return;
-        setStatusIndice("erro");
-        setMensagemIndice(
-          "Não foi possível obter o índice agora. Troque para percentual informado à mão.",
-        );
-      });
-    return () => controle.abort();
-  }, [estado.correcao.ativa, estado.correcao.modo, estado.correcao.indice, mesesDoCalculo]);
+    const relogio = window.setTimeout(() => {
+      avisarStatus("carregando");
+      avisarTexto("");
+      fetch(`/api/indices?indice=${indice}&de=${de}&ate=${ate}`, { signal: controle.signal })
+        .then(async (r) => {
+          const dados = await r.json();
+          if (!r.ok) throw new Error(dados?.erro ?? "falha");
+          const valores = (dados.valores ?? {}) as Record<string, number>;
+          aplicar(valores);
+          avisarStatus("pronto");
+          avisarTexto(
+            Object.keys(valores).length === 0
+              ? `${dados.aviso ?? "Ainda não há índice publicado para o período."} ${textoVazio}`
+              : `${dados.serieNome} — fonte: Banco Central do Brasil${
+                  dados.origem === "reserva" ? ", de consulta anterior" : ""
+                }.`,
+          );
+        })
+        .catch((e: unknown) => {
+          if (e instanceof DOMException && e.name === "AbortError") return;
+          avisarStatus("erro");
+          avisarTexto("Não foi possível obter o índice agora. Informe o percentual à mão.");
+        });
+    }, 500);
+    return () => {
+      window.clearTimeout(relogio);
+      controle.abort();
+    };
+  };
+
+  useEffect(
+    () =>
+      usarSerie(
+        estado.correcao.ativa && estado.correcao.modo === "indice",
+        estado.correcao.indice,
+        setSerie,
+        setStatusIndice,
+        setMensagemIndice,
+        "A correção fica em zero até a publicação.",
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [estado.correcao.ativa, estado.correcao.modo, estado.correcao.indice, mesesDoCalculo],
+  );
+
+  useEffect(
+    () =>
+      usarSerie(
+        estado.juros.ativo && estado.juros.modo === "serie",
+        "TAXA_LEGAL",
+        setSerieJuros,
+        setStatusJuros,
+        setMensagemJuros,
+        "Os juros do mês sem publicação ficam de fora e são sinalizados.",
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [estado.juros.ativo, estado.juros.modo, mesesDoCalculo],
+  );
 
   /* ------------------------------------------------------------------ PDF */
 
@@ -722,6 +773,8 @@ export function Calculadora() {
               alterar={alterar}
               statusIndice={statusIndice}
               mensagemIndice={mensagemIndice}
+              statusJuros={statusJuros}
+              mensagemJuros={mensagemJuros}
             />
           )}
         </div>
@@ -1284,11 +1337,15 @@ function AbaCriterios({
   alterar,
   statusIndice,
   mensagemIndice,
+  statusJuros,
+  mensagemJuros,
 }: {
   estado: Estado;
   alterar: (mudanca: Partial<Estado>) => void;
   statusIndice: "ocioso" | "carregando" | "pronto" | "erro";
   mensagemIndice: string;
+  statusJuros: "ocioso" | "carregando" | "pronto" | "erro";
+  mensagemJuros: string;
 }) {
   return (
     <div className="space-y-4">
@@ -1322,15 +1379,42 @@ function AbaCriterios({
           descricao="Desligue apenas se quiser ver só o principal em aberto."
         />
         {estado.juros.ativo && (
-          <div className="mt-4">
+          <div className="mt-4 space-y-4">
+            <Selecao
+              rotulo="Como calcular os juros"
+              valor={estado.juros.modo}
+              aoMudar={(v) =>
+                alterar({
+                  juros: {
+                    ...estado.juros,
+                    modo: v,
+                    fundamento:
+                      v === "serie"
+                        ? "art. 406 do Código Civil, com a redação da Lei 14.905/2024"
+                        : "art. 39 da Lei 8.177/1991",
+                  },
+                })
+              }
+              opcoes={[
+                { valor: "fixa", rotulo: "Taxa fixa ao mês" },
+                { valor: "serie", rotulo: "Taxa legal: Selic menos IPCA, mês a mês" },
+              ]}
+              ajuda={
+                estado.juros.modo === "serie"
+                  ? "cada mês entra com a sua própria taxa, buscada no Banco Central"
+                  : "a mesma taxa em todo o período, pelo mês comercial de 30 dias"
+              }
+            />
             <Grade>
-              <CampoNumero
-                rotulo="Taxa ao mês"
-                valor={estado.juros.taxaMesPct}
-                aoMudar={(v) => alterar({ juros: { ...estado.juros, taxaMesPct: v } })}
-                sufixo="% a.m."
-                passo={0.1}
-              />
+              {estado.juros.modo === "fixa" && (
+                <CampoNumero
+                  rotulo="Taxa ao mês"
+                  valor={estado.juros.taxaMesPct}
+                  aoMudar={(v) => alterar({ juros: { ...estado.juros, taxaMesPct: v } })}
+                  sufixo="% a.m."
+                  passo={0.1}
+                />
+              )}
               <CampoTexto
                 rotulo="Fundamento"
                 valor={estado.juros.fundamento}
@@ -1338,6 +1422,15 @@ function AbaCriterios({
                 ajuda="aparece no memorial ao lado da taxa"
               />
             </Grade>
+            {estado.juros.modo === "serie" && (
+              <p className="text-xs text-suave">
+                {statusJuros === "carregando" && "Consultando a Selic e o IPCA no Banco Central..."}
+                {statusJuros === "pronto" && mensagemJuros}
+                {statusJuros === "erro" && <span className="text-alerta">{mensagemJuros}</span>}
+                {statusJuros === "ocioso" &&
+                  "A consulta acontece assim que houver parcela com valor."}
+              </p>
+            )}
           </div>
         )}
         <div className="mt-4">

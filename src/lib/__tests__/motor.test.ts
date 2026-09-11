@@ -15,7 +15,13 @@ import type { Competencia, Parametros } from "../tipos";
 
 const parametrosBase: Parametros = {
   dataApuracao: "2026-03-06",
-  juros: { ativo: true, taxaMesPct: 1, fundamento: "art. 39, Lei 8.177/1991" },
+  juros: {
+    ativo: true,
+    modo: "fixa",
+    taxaMesPct: 1,
+    serie: {},
+    fundamento: "art. 39, Lei 8.177/1991",
+  },
   multa: {
     ativa: true,
     tipo: "percentual",
@@ -247,6 +253,69 @@ describe("apuração de uma competência", () => {
     // 300.000 x 1% x 28/30 = 2.800
     expect(r.jurosCentavos).toBe(2_800);
     expect(r.totalDevidoCentavos).toBe(300_000 + 2_800 + 30_000);
+  });
+});
+
+describe("juros por série mensal (taxa legal do art. 406 do Código Civil)", () => {
+  const comSerie = (serie: Record<string, number>): Parametros => ({
+    ...parametrosBase,
+    juros: {
+      ativo: true,
+      modo: "serie",
+      taxaMesPct: 0,
+      serie,
+      fundamento: "art. 406 do Código Civil, redação da Lei 14.905/2024",
+    },
+    multa: { ...parametrosBase.multa, ativa: false },
+  });
+
+  it("aplica a taxa de cada mês proporcional aos dias dentro do mês", () => {
+    const r = apurarCompetencia(
+      competencia({
+        salarioCentavos: 300_000,
+        pagamentos: [{ id: "p1", data: "2026-03-10", valorCentavos: 300_000 }],
+      }),
+      comSerie({ "2026-02": 1, "2026-03": 0.5 }),
+    );
+    // vencimento 06/02; fevereiro entra com 23 dias de 28, março com 9 de 31
+    // 300.000 x 1% x 23/28 = 2.464,29 e 300.000 x 0,5% x 9/31 = 435,48
+    expect(r.pagamentos[0]!.diasAtraso).toBe(32);
+    expect(r.jurosCentavos).toBe(2_900);
+  });
+
+  it("mês curto rende mais por dia que o mês comercial de 30 dias", () => {
+    const emSerie = apurarCompetencia(
+      competencia({
+        salarioCentavos: 300_000,
+        pagamentos: [{ id: "p1", data: "2026-03-10", valorCentavos: 300_000 }],
+      }),
+      comSerie({ "2026-02": 1, "2026-03": 1 }),
+    );
+    // fevereiro: 300.000 x 1% x 23/28 = 2.464,29
+    // março:     300.000 x 1% x  9/31 =   870,97
+    expect(emSerie.jurosCentavos).toBe(3_335);
+
+    const emTaxaFixa = apurarCompetencia(
+      competencia({
+        salarioCentavos: 300_000,
+        pagamentos: [{ id: "p1", data: "2026-03-10", valorCentavos: 300_000 }],
+      }),
+      { ...parametrosBase, multa: { ...parametrosBase.multa, ativa: false } },
+    );
+    // pelo mês comercial: 300.000 x 1% x 32/30 = 3.200
+    expect(emTaxaFixa.jurosCentavos).toBe(3_200);
+  });
+
+  it("mês sem taxa publicada é sinalizado em vez de virar zero silencioso", () => {
+    const r = apurarCompetencia(
+      competencia({
+        salarioCentavos: 300_000,
+        pagamentos: [{ id: "p1", data: "2026-03-10", valorCentavos: 300_000 }],
+      }),
+      comSerie({ "2026-02": 1 }),
+    );
+    expect(r.mesesSemIndice).toContain("2026-03");
+    expect(r.jurosCentavos).toBe(2_464);
   });
 });
 

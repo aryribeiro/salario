@@ -15,6 +15,7 @@
 import {
   chaveMes,
   chaveMesDaData,
+  diasNoMes,
   diferencaEmDias,
   formatarCompetencia,
   intervaloDeMeses,
@@ -64,9 +65,52 @@ function fatorDeCorrecao(
   return { fator: acumulado - 1, ausentes };
 }
 
-function jurosDe(valor: Centavos, dias: number, taxaMesPct: number): Centavos {
-  if (dias <= 0 || valor <= 0 || taxaMesPct <= 0) return 0;
-  return arredondar((valor * (taxaMesPct / 100) * dias) / 30);
+/**
+ * Juros simples do período, sem capitalização.
+ *
+ * Com taxa fixa, o mês comercial de 30 dias é a convenção usada nos cálculos
+ * trabalhistas. Com série mensal, cada mês entra com a sua própria taxa,
+ * proporcional aos dias em que a dívida existiu dentro daquele mês: é o único
+ * jeito honesto de aplicar a taxa legal do art. 406 do Código Civil, que muda
+ * de um mês para o outro.
+ */
+function jurosDoPeriodo(
+  valor: Centavos,
+  vencimento: DataISO,
+  ate: DataISO,
+  juros: Parametros["juros"],
+): { centavos: Centavos; mesesSemTaxa: string[] } {
+  const dias = diferencaEmDias(vencimento, ate);
+  if (dias <= 0 || valor <= 0 || !juros.ativo) return { centavos: 0, mesesSemTaxa: [] };
+
+  if (juros.modo === "fixa") {
+    if (juros.taxaMesPct <= 0) return { centavos: 0, mesesSemTaxa: [] };
+    return { centavos: arredondar((valor * (juros.taxaMesPct / 100) * dias) / 30), mesesSemTaxa: [] };
+  }
+
+  const mesesSemTaxa: string[] = [];
+  let total = 0;
+  for (const mes of intervaloDeMeses(chaveMesDaData(vencimento), chaveMesDaData(ate))) {
+    const [ano, numero] = mes.split("-").map(Number);
+    const totalDeDias = diasNoMes(ano!, numero!);
+    const inicioDoMes = `${mes}-01`;
+    // A fronteira do mês é o dia 1º do mês seguinte, não o último dia deste:
+    // usar o último dia perderia a diária da virada e o total não fecharia com
+    // os dias corridos do período.
+    const seguinte = proximoMes(ano!, numero!);
+    const fimDoMes = `${chaveMes(seguinte.ano, seguinte.mes)}-01`;
+    const inicio = inicioDoMes > vencimento ? inicioDoMes : vencimento;
+    const fim = fimDoMes < ate ? fimDoMes : ate;
+    const diasNoTrecho = diferencaEmDias(inicio, fim);
+    if (diasNoTrecho <= 0) continue;
+    const taxa = juros.serie[mes];
+    if (taxa === undefined) {
+      mesesSemTaxa.push(mes);
+      continue;
+    }
+    total += (valor * (taxa / 100) * diasNoTrecho) / totalDeDias;
+  }
+  return { centavos: arredondar(total), mesesSemTaxa };
 }
 
 /**
@@ -134,6 +178,10 @@ function apurarNucleo(
       ? fatorDeCorrecao(vencimento, pagamento.data, parametros)
       : { fator: 0, ausentes: [] as string[] };
     info.ausentes.forEach((m) => mesesSemIndice.add(m));
+    const jurosDoPagamento = emAtraso
+      ? jurosDoPeriodo(aplicado, vencimento, pagamento.data, juros)
+      : { centavos: 0, mesesSemTaxa: [] as string[] };
+    jurosDoPagamento.mesesSemTaxa.forEach((m) => mesesSemIndice.add(m));
     pagamentos.push({
       id: pagamento.id,
       data: pagamento.data,
@@ -141,7 +189,7 @@ function apurarNucleo(
       valorAplicadoCentavos: aplicado,
       excedenteCentavos: excedente,
       diasAtraso: emAtraso ? dias : 0,
-      jurosCentavos: juros.ativo && emAtraso ? jurosDe(aplicado, dias, juros.taxaMesPct) : 0,
+      jurosCentavos: jurosDoPagamento.centavos,
       correcaoCentavos: emAtraso ? correcaoDe(aplicado, info.fator) : 0,
       situacao,
       descricao: pagamento.descricao,
@@ -151,8 +199,12 @@ function apurarNucleo(
   const saldoAberto = Math.max(0, saldo);
   const diasAtrasoSaldo =
     saldoAberto > 0 ? Math.max(0, diferencaEmDias(vencimento, dataApuracao)) : 0;
-  const jurosSaldo =
-    juros.ativo && saldoAberto > 0 ? jurosDe(saldoAberto, diasAtrasoSaldo, juros.taxaMesPct) : 0;
+  const calculoSaldo =
+    saldoAberto > 0
+      ? jurosDoPeriodo(saldoAberto, vencimento, dataApuracao, juros)
+      : { centavos: 0, mesesSemTaxa: [] as string[] };
+  calculoSaldo.mesesSemTaxa.forEach((m) => mesesSemIndice.add(m));
+  const jurosSaldo = calculoSaldo.centavos;
   const correcaoSaldoInfo =
     saldoAberto > 0 && diasAtrasoSaldo > 0
       ? fatorDeCorrecao(vencimento, dataApuracao, parametros)

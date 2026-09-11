@@ -433,13 +433,41 @@ function secaoParametros(p: Pincel, apuracao: Apuracao) {
     );
   }
 
-  paragrafo(
-    p,
-    juros.ativo
-      ? `Juros de mora: ${formatarPercentual(juros.taxaMesPct)} ao mês, simples, calculados dia a dia sobre cada parcela em atraso, sem capitalização. Fundamento informado: ${juros.fundamento}.`
-      : "Juros de mora: não aplicados nesta apuração.",
-    { tamanho: 8.8, espacoDepois: 4 },
-  );
+  if (!juros.ativo) {
+    paragrafo(p, "Juros de mora: não aplicados nesta apuração.", {
+      tamanho: 8.8,
+      espacoDepois: 4,
+    });
+  } else if (juros.modo === "serie") {
+    const meses = Object.keys(juros.serie).sort();
+    paragrafo(
+      p,
+      "Juros de mora pela taxa legal do art. 406 do Código Civil, na redação da Lei 14.905/2024: " +
+        "Selic acumulada no mês menos IPCA do mês, com resultado negativo considerado zero. " +
+        "Cada mês entra com a sua própria taxa, proporcional aos dias em que a dívida existiu naquele mês, " +
+        "sem capitalização. Séries 4390 e 433 do Banco Central do Brasil" +
+        (meses.length > 0
+          ? `, de ${meses[0]} a ${meses[meses.length - 1]}.`
+          : ", ainda sem valores publicados para o período.") +
+        ` Fundamento informado: ${juros.fundamento}.`,
+      { tamanho: 8.8, espacoDepois: 4 },
+    );
+    if (meses.length > 0) {
+      paragrafo(
+        p,
+        `Taxas aplicadas, em percentual ao mês: ${meses
+          .map((m) => `${m} ${formatarPercentual(juros.serie[m] ?? 0, 4)}`)
+          .join("; ")}.`,
+        { tamanho: 8, cor: TINTA.suave, espacoDepois: 4 },
+      );
+    }
+  } else {
+    paragrafo(
+      p,
+      `Juros de mora: ${formatarPercentual(juros.taxaMesPct)} ao mês, simples, calculados dia a dia sobre cada parcela em atraso, sem capitalização. Fundamento informado: ${juros.fundamento}.`,
+      { tamanho: 8.8, espacoDepois: 4 },
+    );
+  }
 
   paragrafo(
     p,
