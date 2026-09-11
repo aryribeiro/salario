@@ -8,7 +8,7 @@ import "./globals.css";
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
-const site = process.env.NEXT_PUBLIC_SITE_URL ?? "https://salario-six.vercel.app";
+const site = process.env.NEXT_PUBLIC_SITE_URL ?? "https://salario2026.vercel.app";
 
 export const metadata: Metadata = {
   metadataBase: new URL(site),

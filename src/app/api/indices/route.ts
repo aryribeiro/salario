@@ -53,12 +53,27 @@ export async function GET(request: Request) {
     `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${serie.codigo}/dados` +
     `?formato=json&dataInicial=${primeiroDia(de)}&dataFinal=${ultimoDia(ate)}`;
 
+  /**
+   * Uma falha isolada acontece: a primeira chamada depois de um período ocioso
+   * chega a estourar o tempo. Como o usuário só veria a mensagem de erro, vale
+   * uma segunda tentativa antes de desistir.
+   */
+  async function buscar(tentativa = 1): Promise<Response> {
+    try {
+      return await fetch(endereco, {
+        headers: { Accept: "application/json" },
+        next: { revalidate },
+        signal: AbortSignal.timeout(12_000),
+      });
+    } catch (erro) {
+      if (tentativa >= 2) throw erro;
+      await new Promise((seguir) => setTimeout(seguir, 700));
+      return buscar(tentativa + 1);
+    }
+  }
+
   try {
-    const resposta = await fetch(endereco, {
-      headers: { Accept: "application/json" },
-      next: { revalidate },
-      signal: AbortSignal.timeout(15_000),
-    });
+    const resposta = await buscar();
     if (!resposta.ok) {
       return NextResponse.json(
         { erro: `O Banco Central respondeu com status ${resposta.status}.` },
