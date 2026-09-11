@@ -22,8 +22,13 @@ comum de pagar parte do salário na data e o restante dias depois.
   antecipando quando a data cai em dia sem expediente bancário.
 - **FGTS.** Depósito de 8% com vencimento no dia 20 do mês seguinte, juros de 0,5% ao mês
   ou fração e multa de 5% ou 10%, na forma do art. 22 da Lei 8.036/1990.
+- **Dois regimes de juros.** Taxa fixa ao mês, com 1% como padrão, ou a taxa legal do art. 406
+  do Código Civil na redação da Lei 14.905/2024, que é a Selic do mês menos o IPCA do mês, com
+  piso em zero. No segundo caso cada mês entra com a sua própria taxa, buscada no Banco
+  Central, proporcional aos dias em que a dívida existiu naquele mês.
 - **Memorial em PDF.** Documento paginado com identificação, critérios, apuração parcela a
-  parcela, resumo financeiro, fundamentação e os limites do próprio documento.
+  parcela, resumo financeiro, fundamentação e os limites do próprio documento. Quando os juros
+  vêm da taxa legal, o memorial imprime a taxa aplicada em cada mês.
 
 ## O que ele deliberadamente não faz
 
@@ -103,6 +108,13 @@ centavo a centavo pelos testes automatizados deste repositório.
 | Uso | Fonte |
 |---|---|
 | Variação mensal do IPCA (série 433), do INPC (série 188) e do IGP-M (série 189) | [Sistema Gerenciador de Séries Temporais do Banco Central](https://www3.bcb.gov.br/sgspub/), consultado pela [API pública](https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=json) |
+| Selic acumulada no mês (série 4390), usada com o IPCA para compor a taxa legal | mesma fonte |
+
+A consulta passa por uma rota do próprio aplicativo, que guarda o resultado por seis horas,
+repete a chamada até três vezes com recuo exponencial e jitter, e serve a última resposta
+conhecida quando o Banco Central não responde. Período sem índice publicado não é tratado como
+falha: os meses faltantes são listados e o valor correspondente fica de fora, em vez de virar
+zero silencioso.
 
 ### O que não virou regra
 
