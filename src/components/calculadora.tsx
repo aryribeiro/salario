@@ -159,32 +159,55 @@ function estadoInicial(): Estado {
   };
 }
 
+/**
+ * Cenário de demonstração, completo de propósito: identificação preenchida e
+ * dois meses que mostram o que a ferramenta tem de diferente, um pago em duas
+ * vezes e outro com saldo em aberto. Quem clica em "Ver exemplo" precisa
+ * conseguir baixar o memorial sem preencher mais nada.
+ */
 function exemplo(): Estado {
   const base = estadoInicial();
   const hoje = base.dataApuracao;
   const [ano, mes] = mesAnterior(hoje).split("-").map(Number);
   const anterior = mes === 1 ? chaveMes(ano - 1, 12) : chaveMes(ano, mes - 1);
+
+  /** Mês em que o salário daquela competência deveria ter sido pago. */
+  const mesDoPagamento = (competencia: string) => {
+    const [a, m] = competencia.split("-").map(Number);
+    const seguinte = proximoMes(a!, m!);
+    return chaveMes(seguinte.ano, seguinte.mes);
+  };
+
   return {
     ...base,
     identificacao: {
       ...base.identificacao,
-      empresa: "Empresa Exemplo Ltda.",
+      empresa: "Comércio Exemplo Ltda.",
+      cnpj: "11.222.333/0001-81",
       empregado: "Maria de Souza",
       cargo: "Auxiliar administrativa",
       responsavel: "Gerência de pessoas",
+      observacoes: "Cenário de demonstração, com dados fictícios.",
     },
     salarios: [
       {
         id: novoId(),
         mes: anterior,
         valor: 320_000,
-        pagamentos: [],
+        pagamentos: [
+          // Metade na data prevista e o restante duas semanas depois.
+          { id: novoId(), data: `${mesDoPagamento(anterior)}-05`, valor: 160_000 },
+          { id: novoId(), data: `${mesDoPagamento(anterior)}-19`, valor: 160_000 },
+        ],
       },
       {
         id: novoId(),
         mes: mesAnterior(hoje),
         valor: 320_000,
-        pagamentos: [],
+        pagamentos: [
+          // Pagamento parcial: o que sobrou segue em aberto e rendendo juros.
+          { id: novoId(), data: `${mesDoPagamento(mesAnterior(hoje))}-12`, valor: 180_000 },
+        ],
       },
     ],
   };
