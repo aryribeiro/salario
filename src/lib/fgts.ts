@@ -1,0 +1,101 @@
+/**
+ * Encargos do FGTS recolhido fora do prazo.
+ *
+ * Lei 8.036/1990, art. 15: o empregador deposita 8% da remuneração paga ou
+ * devida no mês anterior. O fato gerador é a remuneração DEVIDA — atrasar o
+ * pagamento do salário não adia o depósito.
+ *
+ * Prazo: dia 20 do mês seguinte (redação da Lei 14.438/2022). Quando o dia 20
+ * não tem expediente bancário, o recolhimento antecipa para o dia útil anterior.
+ *
+ * Art. 22: o recolhimento em atraso sofre juros de mora de 0,5% ao mês ou
+ * fração, multa de 5% no mês do vencimento e de 10% a partir do mês seguinte,
+ * além da atualização pela TR. A TR não é calculada aqui, e o memorial diz
+ * isso: seu valor depende de série diária e o efeito é pequeno diante dos
+ * demais encargos.
+ */
+
+import { chaveMesDaData, diferencaEmDias, paraISO, paraUTC, type DataISO } from "./data";
+import { arredondar, type Centavos } from "./dinheiro";
+import { mapaDeFeriados } from "./feriados";
+
+export const ALIQUOTA_FGTS = 0.08;
+export const ALIQUOTA_FGTS_APRENDIZ = 0.02;
+
+/** Vencimento do depósito: dia 20 do mês seguinte, antecipado se não for dia bancário. */
+export function vencimentoFGTS(
+  anoCompetencia: number,
+  mesCompetencia: number,
+  feriadosLocais: { data: DataISO; nome?: string }[] = [],
+): DataISO {
+  const ano = mesCompetencia === 12 ? anoCompetencia + 1 : anoCompetencia;
+  const mes = mesCompetencia === 12 ? 1 : mesCompetencia + 1;
+  const feriados = mapaDeFeriados(ano, { bancarios: true, locais: feriadosLocais });
+  let dia = 20;
+  while (dia > 1) {
+    const data = paraISO(ano, mes, dia);
+    const semana = paraUTC(data).getUTCDay();
+    const ehBancario = semana !== 0 && semana !== 6 && !feriados.has(data);
+    if (ehBancario) return data;
+    dia -= 1;
+  }
+  return paraISO(ano, mes, 1);
+}
+
+export interface EncargoFGTS {
+  competencia: string;
+  vencimento: DataISO;
+  baseCentavos: Centavos;
+  depositoCentavos: Centavos;
+  diasAtraso: number;
+  mesesOuFracao: number;
+  jurosCentavos: Centavos;
+  multaCentavos: Centavos;
+  percentualMulta: number;
+  totalCentavos: Centavos;
+  recolhido: boolean;
+}
+
+export interface ParametrosFGTS {
+  /** Data em que o depósito foi feito. Vazio significa ainda não recolhido. */
+  dataRecolhimento?: DataISO;
+  dataApuracao: DataISO;
+  aprendiz?: boolean;
+  feriadosLocais?: { data: DataISO; nome?: string }[];
+}
+
+export function apurarFGTS(
+  anoCompetencia: number,
+  mesCompetencia: number,
+  remuneracaoCentavos: Centavos,
+  parametros: ParametrosFGTS,
+): EncargoFGTS {
+  const vencimento = vencimentoFGTS(
+    anoCompetencia,
+    mesCompetencia,
+    parametros.feriadosLocais ?? [],
+  );
+  const aliquota = parametros.aprendiz ? ALIQUOTA_FGTS_APRENDIZ : ALIQUOTA_FGTS;
+  const deposito = arredondar(Math.max(0, remuneracaoCentavos) * aliquota);
+  const dataFinal = parametros.dataRecolhimento || parametros.dataApuracao;
+  const dias = Math.max(0, diferencaEmDias(vencimento, dataFinal));
+  const mesesOuFracao = dias > 0 ? Math.ceil(dias / 30) : 0;
+  const juros = dias > 0 ? arredondar(deposito * 0.005 * mesesOuFracao) : 0;
+  // 5% dentro do mês do vencimento; 10% a partir do mês seguinte.
+  const percentualMulta =
+    dias <= 0 ? 0 : chaveMesDaData(dataFinal) === chaveMesDaData(vencimento) ? 5 : 10;
+  const multa = arredondar(deposito * (percentualMulta / 100));
+  return {
+    competencia: `${anoCompetencia}-${String(mesCompetencia).padStart(2, "0")}`,
+    vencimento,
+    baseCentavos: remuneracaoCentavos,
+    depositoCentavos: deposito,
+    diasAtraso: dias,
+    mesesOuFracao,
+    jurosCentavos: juros,
+    multaCentavos: multa,
+    percentualMulta,
+    totalCentavos: deposito + juros + multa,
+    recolhido: Boolean(parametros.dataRecolhimento),
+  };
+}

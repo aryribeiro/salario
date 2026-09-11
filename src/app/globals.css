@@ -1,26 +1,153 @@
 @import "tailwindcss";
 
+/*
+  Tema por variável, não por variante: cada cor tem um valor claro, um escuro
+  automático pelo sistema e um forçado pelo atributo data-tema. Os componentes
+  usam sempre o mesmo nome de classe, e o tema troca embaixo deles.
+*/
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --fundo: #f6f7f8;
+  --superficie: #ffffff;
+  --superficie-2: #f1f4f4;
+  --borda: #dfe4e6;
+  --borda-forte: #c4ccce;
+  --texto: #14201f;
+  --suave: #5a6a6c;
+  --marca: #0d5c4f;
+  --marca-forte: #0a463d;
+  --marca-suave: #e6f2ef;
+  --alerta: #a32020;
+  --alerta-suave: #fdeceb;
+  --atencao: #8a5a05;
+  --atencao-suave: #fdf3e2;
+  --ok: #14663f;
+  --ok-suave: #e7f4ec;
+  --sombra: 0 1px 2px rgb(16 32 30 / 0.06), 0 8px 24px rgb(16 32 30 / 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="claro"]) {
+    --fundo: #0e1413;
+    --superficie: #151d1c;
+    --superficie-2: #1b2524;
+    --borda: #27342f;
+    --borda-forte: #3a4a45;
+    --texto: #e8efed;
+    --suave: #9aacab;
+    --marca: #4fd1b3;
+    --marca-forte: #6fe0c5;
+    --marca-suave: #12312c;
+    --alerta: #ff8b82;
+    --alerta-suave: #3a1a19;
+    --atencao: #e8b45f;
+    --atencao-suave: #342612;
+    --ok: #63d69b;
+    --ok-suave: #12301f;
+    --sombra: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.32);
+  }
+}
+
+:root[data-tema="escuro"] {
+  --fundo: #0e1413;
+  --superficie: #151d1c;
+  --superficie-2: #1b2524;
+  --borda: #27342f;
+  --borda-forte: #3a4a45;
+  --texto: #e8efed;
+  --suave: #9aacab;
+  --marca: #4fd1b3;
+  --marca-forte: #6fe0c5;
+  --marca-suave: #12312c;
+  --alerta: #ff8b82;
+  --alerta-suave: #3a1a19;
+  --atencao: #e8b45f;
+  --atencao-suave: #342612;
+  --ok: #63d69b;
+  --ok-suave: #12301f;
+  --sombra: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.32);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-fundo: var(--fundo);
+  --color-superficie: var(--superficie);
+  --color-superficie-2: var(--superficie-2);
+  --color-borda: var(--borda);
+  --color-borda-forte: var(--borda-forte);
+  --color-texto: var(--texto);
+  --color-suave: var(--suave);
+  --color-marca: var(--marca);
+  --color-marca-forte: var(--marca-forte);
+  --color-marca-suave: var(--marca-suave);
+  --color-alerta: var(--alerta);
+  --color-alerta-suave: var(--alerta-suave);
+  --color-atencao: var(--atencao);
+  --color-atencao-suave: var(--atencao-suave);
+  --color-ok: var(--ok);
+  --color-ok-suave: var(--ok-suave);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: light dark;
+}
+
+:root[data-tema="claro"] {
+  color-scheme: light;
+}
+
+:root[data-tema="escuro"] {
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--fundo);
+  color: var(--texto);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Acessibilidade: o foco precisa aparecer, inclusive sobre fundo escuro. */
+:where(a, button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--marca);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+::selection {
+  background: var(--marca-suave);
+  color: var(--texto);
+}
+
+/* O campo de data nativo fica ilegível no tema escuro sem este ajuste. */
+:root[data-tema="escuro"] input[type="date"]::-webkit-calendar-picker-indicator,
+:root[data-tema="escuro"] input[type="month"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.85);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="claro"]) input[type="date"]::-webkit-calendar-picker-indicator,
+  :root:not([data-tema="claro"]) input[type="month"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.85);
+  }
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+
+  .sem-impressao {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -1,0 +1,404 @@
+import { describe, expect, it } from "vitest";
+
+import { diferencaEmDias, intervaloDeMeses } from "../data";
+import { lerValorEmCentavos } from "../dinheiro";
+import { domingoDePascoa, quintoDiaUtil } from "../feriados";
+import { apurar, apurarCompetencia } from "../motor";
+import type { Competencia, Parametros } from "../tipos";
+
+/**
+ * Os valores esperados deste arquivo foram conferidos à mão, dia a dia, no
+ * calendário de 2026, antes de qualquer linha de interface ser escrita.
+ *
+ * Âncora: 1º de janeiro de 2026 é uma quinta-feira. Páscoa de 2026: 5 de abril.
+ */
+
+const parametrosBase: Parametros = {
+  dataApuracao: "2026-03-06",
+  juros: { ativo: true, taxaMesPct: 1, fundamento: "art. 39, Lei 8.177/1991" },
+  multa: {
+    ativa: true,
+    tipo: "percentual",
+    valor: 10,
+    base: "atraso",
+    clausula: "CCT 2026, cláusula 12",
+    tetoPercentual: null,
+  },
+  correcao: { ativa: false, modo: "indice", indice: "IPCA", percentualManual: 0, serie: {} },
+  calendario: { bancarios: true, sabadoEhUtil: true, locais: [], regiao: "sp-capital" },
+  identificacao: {
+    empresa: "",
+    cnpj: "",
+    empregado: "",
+    cargo: "",
+    responsavel: "",
+    baseSalarial: "liquido",
+    observacoes: "",
+  },
+};
+
+function competencia(parcial: Partial<Competencia> = {}): Competencia {
+  return {
+    id: "c1",
+    ano: 2026,
+    mes: 1,
+    salarioCentavos: 300_000,
+    pagamentos: [],
+    ...parcial,
+  };
+}
+
+describe("calendário e 5º dia útil", () => {
+  it("acha a Páscoa de 2026 em 5 de abril", () => {
+    expect(domingoDePascoa(2026)).toBe("2026-04-05");
+    expect(domingoDePascoa(2025)).toBe("2025-04-20");
+    expect(domingoDePascoa(2024)).toBe("2024-03-31");
+  });
+
+  it("janeiro de 2026 vence em 6 de fevereiro (1º de fevereiro é domingo)", () => {
+    expect(quintoDiaUtil(2026, 1).vencimento).toBe("2026-02-06");
+  });
+
+  it("fevereiro de 2026 vence em 6 de março", () => {
+    expect(quintoDiaUtil(2026, 2).vencimento).toBe("2026-03-06");
+  });
+
+  it("dezembro de 2025 vence em 7 de janeiro: o feriado de 1º e o domingo saem, o sábado fica", () => {
+    expect(quintoDiaUtil(2025, 12).vencimento).toBe("2026-01-07");
+  });
+
+  it("sem contar sábado, dezembro de 2025 vence um dia depois", () => {
+    expect(quintoDiaUtil(2025, 12, { sabadoEhUtil: false }).vencimento).toBe("2026-01-08");
+  });
+
+  it("março de 2026 vence em 7 de abril: a Sexta-feira Santa cai em 3 de abril", () => {
+    expect(quintoDiaUtil(2026, 3).vencimento).toBe("2026-04-07");
+  });
+
+  it("o Carnaval de 2026 tira 16 e 17 de fevereiro da contagem quando ligado", () => {
+    const comCarnaval = quintoDiaUtil(2026, 1, { bancarios: true });
+    const semCarnaval = quintoDiaUtil(2026, 1, { bancarios: false });
+    // O 5º dia útil de fevereiro é anterior ao Carnaval, então não muda.
+    expect(comCarnaval.vencimento).toBe(semCarnaval.vencimento);
+    const dias = comCarnaval.calendario.filter((d) => d.ehUtil).map((d) => d.data);
+    expect(dias).not.toContain("2026-02-16");
+    expect(dias).not.toContain("2026-02-17");
+  });
+
+  it("atravessa a virada do ano: competência de dezembro vence em janeiro seguinte", () => {
+    expect(quintoDiaUtil(2026, 12).vencimento.startsWith("2027-01")).toBe(true);
+  });
+
+  it("conta 29 de fevereiro em ano bissexto", () => {
+    expect(diferencaEmDias("2028-02-01", "2028-03-01")).toBe(29);
+    expect(diferencaEmDias("2026-02-01", "2026-03-01")).toBe(28);
+  });
+});
+
+describe("apuração de uma competência", () => {
+  it("pagamento único com 14 dias de atraso: juros de 1% ao mês proporcionais", () => {
+    const r = apurarCompetencia(
+      competencia({
+        pagamentos: [{ id: "p1", data: "2026-02-20", valorCentavos: 300_000 }],
+      }),
+      parametrosBase,
+    );
+    expect(r.vencimento).toBe("2026-02-06");
+    expect(r.pagamentos[0]!.diasAtraso).toBe(14);
+    // 300.000 centavos x 1% x 14/30 = 1.400 centavos
+    expect(r.jurosCentavos).toBe(1_400);
+    expect(r.multaCentavos).toBe(30_000);
+    expect(r.saldoAbertoCentavos).toBe(0);
+    expect(r.totalDevidoCentavos).toBe(31_400);
+  });
+
+  it("pagamento na data do vencimento não gera encargo algum", () => {
+    const r = apurarCompetencia(
+      competencia({
+        pagamentos: [{ id: "p1", data: "2026-02-06", valorCentavos: 300_000 }],
+      }),
+      parametrosBase,
+    );
+    expect(r.emAtraso).toBe(false);
+    expect(r.quitadaNoPrazo).toBe(true);
+    expect(r.totalDevidoCentavos).toBe(0);
+  });
+
+  it("adiantamento pago antes do vencimento abate o principal sem gerar encargo", () => {
+    const r = apurarCompetencia(
+      competencia({
+        salarioCentavos: 200_000,
+        pagamentos: [
+          { id: "p1", data: "2026-01-30", valorCentavos: 100_000 },
+          { id: "p2", data: "2026-02-06", valorCentavos: 100_000 },
+        ],
+      }),
+      parametrosBase,
+    );
+    expect(r.pagamentos[0]!.situacao).toBe("adiantado");
+    expect(r.pagamentos[1]!.situacao).toBe("em dia");
+    expect(r.jurosCentavos).toBe(0);
+    expect(r.multaCentavos).toBe(0);
+    expect(r.totalDevidoCentavos).toBe(0);
+  });
+
+  it("pagamento parcial: cada parcela carrega os próprios dias de atraso", () => {
+    const r = apurarCompetencia(
+      competencia({
+        salarioCentavos: 400_000,
+        pagamentos: [
+          { id: "p1", data: "2026-02-06", valorCentavos: 150_000 },
+          { id: "p2", data: "2026-02-16", valorCentavos: 100_000 },
+        ],
+      }),
+      parametrosBase,
+    );
+    // p1 em dia; p2 com 10 dias: 100.000 x 1% x 10/30 = 333,33 -> 333
+    expect(r.pagamentos[1]!.diasAtraso).toBe(10);
+    expect(r.pagamentos[1]!.jurosCentavos).toBe(333);
+    // saldo de 150.000 em aberto de 06/02 a 06/03 = 28 dias
+    expect(r.saldoAbertoCentavos).toBe(150_000);
+    expect(r.diasAtrasoSaldo).toBe(28);
+    expect(r.jurosSaldoCentavos).toBe(1_400);
+    expect(r.jurosCentavos).toBe(1_733);
+    // valor em atraso = 100.000 + 150.000; multa de 10% = 25.000
+    expect(r.valorEmAtrasoCentavos).toBe(250_000);
+    expect(r.multaCentavos).toBe(25_000);
+    expect(r.totalDevidoCentavos).toBe(176_733);
+  });
+
+  it("pagamento maior que o devido gera excedente e não gera saldo negativo", () => {
+    const r = apurarCompetencia(
+      competencia({
+        salarioCentavos: 100_000,
+        pagamentos: [{ id: "p1", data: "2026-02-06", valorCentavos: 120_000 }],
+      }),
+      parametrosBase,
+    );
+    expect(r.saldoAbertoCentavos).toBe(0);
+    expect(r.excedenteCentavos).toBe(20_000);
+  });
+
+  it("multa por salário-dia multiplica o maior atraso da competência", () => {
+    const r = apurarCompetencia(
+      competencia({
+        salarioCentavos: 300_000,
+        pagamentos: [{ id: "p1", data: "2026-02-16", valorCentavos: 300_000 }],
+      }),
+      {
+        ...parametrosBase,
+        multa: {
+          ativa: true,
+          tipo: "salarioDia",
+          valor: 1,
+          base: "atraso",
+          clausula: "CCT 2026, cláusula 12",
+          tetoPercentual: null,
+        },
+      },
+    );
+    // salário-dia = 300.000/30 = 10.000; 10 dias de atraso = 100.000
+    expect(r.maiorAtrasoDias).toBe(10);
+    expect(r.multaCentavos).toBe(100_000);
+  });
+
+  it("o teto limita a multa ao percentual do salário", () => {
+    const r = apurarCompetencia(
+      competencia({
+        salarioCentavos: 300_000,
+        pagamentos: [{ id: "p1", data: "2026-02-16", valorCentavos: 300_000 }],
+      }),
+      {
+        ...parametrosBase,
+        multa: {
+          ativa: true,
+          tipo: "salarioDia",
+          valor: 1,
+          base: "atraso",
+          clausula: "CCT 2026, cláusula 12",
+          tetoPercentual: 20,
+        },
+      },
+    );
+    expect(r.multaCentavos).toBe(60_000);
+  });
+
+  it("multa desligada não entra na conta", () => {
+    const r = apurarCompetencia(
+      competencia({
+        pagamentos: [{ id: "p1", data: "2026-02-20", valorCentavos: 300_000 }],
+      }),
+      { ...parametrosBase, multa: { ...parametrosBase.multa, ativa: false } },
+    );
+    expect(r.multaCentavos).toBe(0);
+    expect(r.totalDevidoCentavos).toBe(1_400);
+  });
+
+  it("competência sem nenhum pagamento acumula juros sobre o salário inteiro", () => {
+    const r = apurarCompetencia(competencia({ pagamentos: [] }), parametrosBase);
+    expect(r.saldoAbertoCentavos).toBe(300_000);
+    expect(r.diasAtrasoSaldo).toBe(28);
+    // 300.000 x 1% x 28/30 = 2.800
+    expect(r.jurosCentavos).toBe(2_800);
+    expect(r.totalDevidoCentavos).toBe(300_000 + 2_800 + 30_000);
+  });
+});
+
+describe("correção monetária", () => {
+  it("acumula a variação mensal informada pela série", () => {
+    const r = apurarCompetencia(
+      competencia({
+        salarioCentavos: 100_000,
+        pagamentos: [{ id: "p1", data: "2026-04-10", valorCentavos: 100_000 }],
+      }),
+      {
+        ...parametrosBase,
+        correcao: {
+          ativa: true,
+          modo: "indice",
+          indice: "IPCA",
+          percentualManual: 0,
+          serie: { "2026-02": 1, "2026-03": 1 },
+        },
+      },
+    );
+    // Vencimento 06/02; meses inteiros vencidos até abril: fevereiro e março.
+    // 1,01 x 1,01 = 1,0201 -> 2,01% de 100.000 = 2.010
+    expect(r.correcaoCentavos).toBe(2_010);
+  });
+
+  it("avisa quais meses ficaram sem índice em vez de inventar número", () => {
+    const r = apurarCompetencia(
+      competencia({
+        salarioCentavos: 100_000,
+        pagamentos: [{ id: "p1", data: "2026-04-10", valorCentavos: 100_000 }],
+      }),
+      {
+        ...parametrosBase,
+        correcao: {
+          ativa: true,
+          modo: "indice",
+          indice: "IPCA",
+          percentualManual: 0,
+          serie: { "2026-02": 1 },
+        },
+      },
+    );
+    expect(r.mesesSemIndice).toEqual(["2026-03"]);
+    expect(r.correcaoCentavos).toBe(1_000);
+  });
+
+  it("deflação no período não reduz o valor devido", () => {
+    const r = apurarCompetencia(
+      competencia({
+        salarioCentavos: 100_000,
+        pagamentos: [{ id: "p1", data: "2026-04-10", valorCentavos: 100_000 }],
+      }),
+      {
+        ...parametrosBase,
+        correcao: {
+          ativa: true,
+          modo: "indice",
+          indice: "IPCA",
+          percentualManual: 0,
+          serie: { "2026-02": -0.5, "2026-03": -0.2 },
+        },
+      },
+    );
+    expect(r.correcaoCentavos).toBe(0);
+  });
+
+  it("percentual informado à mão é aplicado direto sobre o valor em atraso", () => {
+    const r = apurarCompetencia(
+      competencia({
+        salarioCentavos: 100_000,
+        pagamentos: [{ id: "p1", data: "2026-02-20", valorCentavos: 100_000 }],
+      }),
+      {
+        ...parametrosBase,
+        correcao: {
+          ativa: true,
+          modo: "manual",
+          indice: "IPCA",
+          percentualManual: 5,
+          serie: {},
+        },
+      },
+    );
+    expect(r.correcaoCentavos).toBe(5_000);
+  });
+});
+
+describe("totais da apuração", () => {
+  it("a soma das competências fecha com o total geral", () => {
+    const r = apurar(
+      [
+        competencia({
+          id: "a",
+          ano: 2025,
+          mes: 12,
+          salarioCentavos: 250_000,
+          pagamentos: [{ id: "p1", data: "2026-01-20", valorCentavos: 250_000 }],
+        }),
+        competencia({
+          id: "b",
+          ano: 2026,
+          mes: 1,
+          salarioCentavos: 250_000,
+          pagamentos: [{ id: "p2", data: "2026-02-16", valorCentavos: 100_000 }],
+        }),
+      ],
+      parametrosBase,
+    );
+    const somaLinhas = r.competencias.reduce((acc, c) => acc + c.totalDevidoCentavos, 0);
+    expect(somaLinhas).toBe(r.totalGeralCentavos);
+    expect(r.competenciasComAtraso).toBe(2);
+    expect(r.competenciasEmAberto).toBe(1);
+    expect(r.competencias[0]!.rotulo).toBe("dezembro de 2025");
+  });
+
+  it("ordena as competências pela data, mesmo digitadas fora de ordem", () => {
+    const r = apurar(
+      [
+        competencia({ id: "b", ano: 2026, mes: 3 }),
+        competencia({ id: "a", ano: 2026, mes: 1 }),
+      ],
+      parametrosBase,
+    );
+    expect(r.competencias.map((c) => c.id)).toEqual(["a", "b"]);
+  });
+
+  it("competência sem valor é descartada", () => {
+    const r = apurar([competencia({ salarioCentavos: 0 })], parametrosBase);
+    expect(r.competencias).toHaveLength(0);
+    expect(r.totalGeralCentavos).toBe(0);
+  });
+});
+
+describe("leitura de valores digitados", () => {
+  it("entende os formatos que uma pessoa realmente digita", () => {
+    expect(lerValorEmCentavos("1.234,56")).toBe(123_456);
+    expect(lerValorEmCentavos("1234,56")).toBe(123_456);
+    expect(lerValorEmCentavos("1234.56")).toBe(123_456);
+    expect(lerValorEmCentavos("R$ 1.234,56")).toBe(123_456);
+    expect(lerValorEmCentavos("1.234")).toBe(123_400);
+    expect(lerValorEmCentavos("3000")).toBe(300_000);
+    expect(lerValorEmCentavos("")).toBeNull();
+    expect(lerValorEmCentavos("abc")).toBeNull();
+  });
+});
+
+describe("intervalos de meses", () => {
+  it("atravessa a virada do ano", () => {
+    expect(intervaloDeMeses("2025-11", "2026-02")).toEqual([
+      "2025-11",
+      "2025-12",
+      "2026-01",
+      "2026-02",
+    ]);
+  });
+
+  it("devolve vazio quando o fim é anterior ao início", () => {
+    expect(intervaloDeMeses("2026-05", "2026-01")).toEqual([]);
+  });
+});

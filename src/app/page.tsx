@@ -1,69 +1,59 @@
-import Image from "next/image";
+import { Calculadora } from "@/components/calculadora";
 
-export default function Home() {
+const PERGUNTAS: { pergunta: string; resposta: string }[] = [
+  {
+    pergunta: "Até quando a empresa pode pagar o salário do mês?",
+    resposta:
+      "Até o 5º dia útil do mês seguinte ao mês trabalhado, conforme o art. 459, §1º, da CLT. Na contagem desse prazo o sábado conta como dia útil; saem da conta os domingos e os feriados. Por isso o feriado da cidade importa: ele empurra a data-limite.",
+  },
+  {
+    pergunta: "Existe multa automática por atrasar o salário?",
+    resposta:
+      "Não em favor do empregado. A CLT não cria multa automática pelo atraso do salário mensal do contrato em curso. A multa do art. 477 é das verbas rescisórias. O que existe é a multa administrativa aplicada pela fiscalização do trabalho, que é paga à União. A multa que o trabalhador recebe vem da convenção coletiva da categoria, quando ela prevê.",
+  },
+  {
+    pergunta: "E se a empresa pagou só uma parte na data certa?",
+    resposta:
+      "Cada parcela carrega os próprios dias de atraso. O que foi pago no prazo não gera encargo, o que foi pago depois gera juros proporcionais aos dias, e o que sobrou em aberto continua rendendo juros até a data da apuração. É exatamente o caso da empresa que paga metade no quinto dia útil e o resto duas semanas depois.",
+  },
+  {
+    pergunta: "Férias pagas com atraso dobram?",
+    resposta:
+      "Não. A Súmula 450 do TST previa a dobra, mas o Supremo Tribunal Federal a declarou inconstitucional no julgamento da ADPF 501, em 2022. Sobre o atraso incidem juros e correção. A dobra do art. 137 da CLT continua valendo em outra hipótese: quando as férias são concedidas depois do período concessivo.",
+  },
+  {
+    pergunta: "O FGTS também entra?",
+    resposta:
+      "Entra, e por um motivo simples: o depósito de 8% é devido sobre a remuneração do mês, mesmo que o salário tenha sido pago com atraso. Recolhido fora do prazo, o FGTS sofre juros de 0,5% ao mês ou fração e multa de 5% ou 10%, na forma do art. 22 da Lei 8.036/1990.",
+  },
+  {
+    pergunta: "Os meus dados vão para algum servidor?",
+    resposta:
+      "Não. Nome, salário e datas ficam apenas no seu navegador, e o PDF é montado no seu computador. A única consulta externa é a do índice de inflação no Banco Central, que não leva nenhum dado seu.",
+  },
+];
+
+export default function Pagina() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <main>
+      <Calculadora />
+
+      <section className="mx-auto w-full max-w-6xl px-4 pb-8 sm:px-6">
+        <h2 className="mb-4 text-lg font-semibold text-texto">Perguntas frequentes</h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {PERGUNTAS.map((item) => (
+            <details
+              key={item.pergunta}
+              className="rounded-2xl border border-borda bg-superficie p-4"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+              <summary className="cursor-pointer text-sm font-semibold text-texto">
+                {item.pergunta}
+              </summary>
+              <p className="mt-2 text-sm leading-relaxed text-suave">{item.resposta}</p>
+            </details>
+          ))}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      </section>
+    </main>
   );
 }
