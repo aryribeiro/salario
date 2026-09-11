@@ -8,6 +8,90 @@ cada número.
 Feito para o líder ou gerente que precisa medir o tamanho do problema, inclusive no caso
 comum de pagar parte do salário na data e o restante dias depois.
 
+## Como usar, passo a passo
+
+Feito para quem nunca abriu o aplicativo. Não é preciso instalar nada nem criar conta:
+tudo acontece na página, em [salario2026.vercel.app](https://salario2026.vercel.app).
+
+### O caminho mais curto
+
+1. **Abra o aplicativo.** Ele começa na aba **Quem**.
+2. **Diga de quem é o cálculo.** Preencha o nome do trabalhador, o cargo, o nome da empresa e
+   o CNPJ. Os quatro são obrigatórios, porque saem impressos no documento final.
+3. **Vá para a aba Salário.** Escolha o mês em que a pessoa trabalhou e digite quanto ela
+   tinha a receber naquele mês.
+4. **Informe o que a empresa pagou.** Clique em **+ Adicionar pagamento** e preencha a data e
+   o valor. Repita para cada pagamento, inclusive os parciais.
+5. **Baixe o documento.** No quadro do resultado, clique em **Baixar memorial em PDF**.
+
+O total fica no quadro do resultado, ao lado no computador e logo abaixo no celular. Ele
+muda enquanto você digita: não existe botão de calcular.
+
+### Um exemplo do começo ao fim
+
+Agosto de 2026. A pessoa tinha R$ 3.000,00 a receber. A empresa pagou R$ 1.800,00 no dia 5 de
+setembro e só quitou os R$ 1.200,00 restantes no dia 22.
+
+| O que fazer | O que digitar |
+|---|---|
+| Aba Quem | nome, cargo, empresa e CNPJ |
+| Aba Salário, campo "Mês trabalhado" | agosto de 2026 |
+| Campo "Valor devido no mês" | 3000,00 |
+| Primeiro pagamento | 05/09/2026 e 1800,00 |
+| Segundo pagamento | 22/09/2026 e 1200,00 |
+
+O aplicativo descobre sozinho que o prazo terminava em **5 de setembro de 2026**, que é o
+quinto dia útil do mês seguinte ao trabalhado. Então conclui que a primeira parte foi paga no
+prazo e a segunda atrasou **17 dias**, o que dá **R$ 6,80** de juros. Com a data de apuração em
+30 de setembro, o total devido fica em **R$ 6,80**, já que não sobrou saldo em aberto.
+
+Se a empresa não tivesse pago a segunda parte, o valor continuaria contando juros dia após dia
+até a data da apuração.
+
+### O que faz cada aba
+
+**Quem.** A identificação. Nome e cargo do trabalhador, nome e CNPJ da empresa. O CNPJ é
+conferido na hora: se o número não fechar, o campo avisa. Aqui também se escolhe se os valores
+que você vai digitar são líquidos, o que cai na conta, ou brutos, antes dos descontos. Os
+campos de quem preparou o cálculo e as observações são opcionais.
+
+**Salário.** Uma competência para cada mês trabalhado. Use **+ Adicionar competência** para
+somar meses. Dentro de cada uma, **+ Adicionar pagamento** registra o que a empresa pagou e
+quando. Pagamento feito antes do prazo é adiantamento e não gera encargo. Se a empresa não
+pagou nada, basta não adicionar pagamento algum. Há ainda uma calculadora auxiliar que estima
+o valor líquido a partir do bruto, com as tabelas de 2026.
+
+**Férias.** Use quando a pessoa saiu de férias sem receber, ou recebeu depois da hora. Clique
+em **+ Adicionar período**, informe o primeiro dia de descanso e o aplicativo calcula o prazo,
+que termina dois dias antes. O valor pode ser calculado a partir do salário, já com o terço
+constitucional, ou digitado por inteiro. Se o descanso foi concedido fora do prazo legal,
+ligue a chave **Férias gozadas fora do período concessivo**.
+
+**13º salário.** Clique em **+ Adicionar ano** e informe o valor de cada parcela. O aplicativo
+já sabe que a primeira vence em 30 de novembro e a segunda em 20 de dezembro, e antecipa a data
+quando ela cai em dia sem banco. Cada parcela tem a sua própria lista de pagamentos.
+
+**FGTS.** Ligue a chave **Calcular também o FGTS** para apurar o depósito de 8% e os encargos
+do recolhimento atrasado. O botão **Copiar da aba Salário** traz os meses que você já digitou,
+para não redigitar. Deixe a data do recolhimento em branco se o depósito ainda não foi feito.
+
+**Critérios.** Só mexa aqui se precisar. Vem tudo pronto com o que a lei impõe: juros de 1% ao
+mês e nenhuma multa. Nesta aba você pode mudar a data até onde os juros correm, escolher a taxa
+legal que varia mês a mês, ligar a multa da convenção coletiva da sua categoria, ligar a
+correção monetária e ajustar a região dos feriados, que vem em São Paulo capital.
+
+### Dicas que economizam tempo
+
+- **Não sabe por onde começar?** Clique em **Ver exemplo**, no alto da página, e veja a
+  ferramenta preenchida. Depois clique em **Limpar** para recomeçar do zero.
+- **O botão do PDF está apagado?** Falta preencher a identificação na aba Quem ou informar
+  algum valor devido. O quadro do resultado diz qual dos dois.
+- **Deu zero?** Ótimo sinal: quer dizer que nada foi pago fora do prazo. O documento em PDF
+  registra isso também.
+- **Fechou a página?** O rascunho fica guardado no seu navegador e volta na próxima visita.
+- **Duas abas abertas?** Se as duas tiverem conteúdo diferente, o aplicativo avisa e deixa
+  você escolher qual vale, em vez de apagar uma delas.
+
 ## O que ele faz
 
 - **Identificação primeiro.** O cálculo começa dizendo de quem ele é: nome e cargo do
@@ -138,28 +222,33 @@ fora, e o memorial declara isso.
 ```bash
 npm install
 npm run dev        # http://localhost:3000
-npm test           # motor de cálculo, tributos, parcelas e geração do PDF
+npm test           # 74 testes: motor, tributos, parcelas, documentos e PDF
+npm run typecheck
 npm run build
 ```
 
 ## Como está montado
 
 ```
-src/lib/       motor de cálculo puro, sem React
-  data.ts      datas em UTC, sem armadilha de fuso
-  dinheiro.ts  dinheiro em centavos inteiros
-  feriados.ts  calendário e 5º dia útil
-  motor.ts     apuração de juros, multa e correção
-  parcelas.ts  prazos de férias e décimo terceiro
-  fgts.ts      encargos do FGTS em atraso
-  tributos.ts  tabelas de INSS e imposto de renda de 2026
-  pdf.ts       memorial de cálculo
-src/components/ interface
+src/lib/         motor de cálculo puro, sem React
+  data.ts        datas em UTC, sem armadilha de fuso
+  dinheiro.ts    dinheiro em centavos inteiros
+  feriados.ts    calendário e 5º dia útil
+  regiao.ts      feriados estaduais e municipais
+  motor.ts       apuração de juros, multa e correção
+  parcelas.ts    prazos de férias e décimo terceiro
+  fgts.ts        encargos do FGTS em atraso
+  tributos.ts    tabelas de INSS e imposto de renda de 2026
+  documentos.ts  CNPJ numérico e alfanumérico, e CPF
+  pdf.ts         memorial de cálculo
+src/components/  interface
 src/app/api/indices  ponte com o Banco Central
 ```
 
 O motor é puro e coberto por testes cujos valores foram conferidos à mão no calendário antes
-de a primeira tela ser desenhada.
+de a primeira tela ser desenhada. Onde existe exemplo oficial, ele virou teste: os dois casos
+publicados pela Receita Federal para o redutor do imposto de renda e o CNPJ alfanumérico
+"12.ABC.345/01DE-35" divulgado pela própria Receita e pelo Serpro.
 
 ## Aviso
 
