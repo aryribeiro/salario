@@ -140,6 +140,20 @@ describe("memorial em PDF", () => {
     expect(bytes.byteLength).toBeGreaterThan(5_000);
   });
 
+  it("deixa os dois endereços do rodapé clicáveis em todas as páginas", async () => {
+    const apuracao = apurar(competencias, parametros, { obrigacoes });
+    const bytes = await gerarMemorial(apuracao);
+    const relido = await PDFDocument.load(bytes);
+    const paginas = relido.getPages();
+    let links = 0;
+    for (const pagina of paginas) {
+      const anotacoes = pagina.node.Annots();
+      if (anotacoes) links += anotacoes.size();
+    }
+    // Um link para o aplicativo e outro para o repositório, por página.
+    expect(links).toBe(paginas.length * 2);
+  });
+
   it("monta um nome de arquivo seguro a partir do nome do empregado", () => {
     const apuracao = apurar(competencias, parametros);
     expect(nomeDoArquivo(apuracao)).toBe(

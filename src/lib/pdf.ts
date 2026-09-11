@@ -8,12 +8,21 @@
  * vai levar a uma negociação.
  */
 
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "@cantoo/pdf-lib";
+import {
+  PDFDocument,
+  PDFString,
+  StandardFonts,
+  rgb,
+  type PDFFont,
+  type PDFImage,
+  type PDFPage,
+} from "@cantoo/pdf-lib";
 
 import { formatarData, formatarCompetencia } from "./data";
 import { formatarDocumento } from "./documentos";
 import { formatarMoeda, formatarNumero, formatarPercentual } from "./dinheiro";
 import { rotuloDaRegiao } from "./regiao";
+import { MOEDA_PNG_BASE64 } from "./marca";
 import type { Apuracao, CompetenciaApurada, ObrigacaoApurada } from "./tipos";
 
 const A4 = { largura: 595.28, altura: 841.89 };
@@ -95,6 +104,8 @@ interface Pincel {
   regular: PDFFont;
   negrito: PDFFont;
   italico: PDFFont;
+  /** Logotipo já embutido; ausente só se a imagem falhar ao carregar. */
+  marca?: PDFImage;
 }
 
 function novaPagina(p: Pincel) {
@@ -331,19 +342,30 @@ function caixaDestaque(p: Pincel, rotulo: string, valor: string, subtitulo: stri
 
 function cabecalhoDoDocumento(p: Pincel, apuracao: Apuracao) {
   const { identificacao } = apuracao.parametros;
-  p.pagina.drawCircle({
-    x: MARGEM.esquerda + 11,
-    y: p.y - 6,
-    size: 11,
-    color: TINTA.marca,
-  });
-  p.pagina.drawText("R$", {
-    x: MARGEM.esquerda + 4,
-    y: p.y - 9.5,
-    size: 8.5,
-    font: p.negrito,
-    color: rgb(1, 1, 1),
-  });
+  if (p.marca) {
+    // A mesma marca da tela. Emoji não existe nas fontes padrão do PDF, então
+    // ele entra como imagem.
+    p.pagina.drawImage(p.marca, {
+      x: MARGEM.esquerda,
+      y: p.y - 17,
+      width: 22,
+      height: 22,
+    });
+  } else {
+    p.pagina.drawCircle({
+      x: MARGEM.esquerda + 11,
+      y: p.y - 6,
+      size: 11,
+      color: TINTA.marca,
+    });
+    p.pagina.drawText("R$", {
+      x: MARGEM.esquerda + 4,
+      y: p.y - 9.5,
+      size: 8.5,
+      font: p.negrito,
+      color: rgb(1, 1, 1),
+    });
+  }
   p.pagina.drawText("Salarium Debitum", {
     x: MARGEM.esquerda + 30,
     y: p.y - 4,
@@ -900,8 +922,38 @@ function secaoAvisos(p: Pincel) {
   );
 }
 
+/**
+ * Transforma um trecho já desenhado em link de verdade.
+ *
+ * Texto colorido só parece um link: quem recebe o documento clica e nada
+ * acontece. O que torna o endereço clicável é a anotação do tipo Link, com a
+ * área exata do trecho e a ação de abrir a URI.
+ */
+function marcarLink(
+  p: Pincel,
+  pagina: PDFPage,
+  url: string,
+  x: number,
+  y: number,
+  largura: number,
+  tamanho: number,
+) {
+  const anotacao = p.doc.context.register(
+    p.doc.context.obj({
+      Type: "Annot",
+      Subtype: "Link",
+      Rect: [x, y - tamanho * 0.28, x + largura, y + tamanho],
+      Border: [0, 0, 0],
+      A: p.doc.context.obj({ Type: "Action", S: "URI", URI: PDFString.of(url) }),
+    }),
+  );
+  pagina.node.addAnnot(anotacao);
+}
+
 function rodapes(p: Pincel) {
   const total = p.paginas.length;
+  const tamanho = 7.2;
+
   p.paginas.forEach((pagina, indice) => {
     pagina.drawLine({
       start: { x: MARGEM.esquerda, y: MARGEM.base - 18 },
@@ -911,30 +963,49 @@ function rodapes(p: Pincel) {
     });
     pagina.drawText(sanear("Salarium Debitum — documento gerado automaticamente, sem valor pericial"), {
       x: MARGEM.esquerda,
-      y: MARGEM.base - 30,
-      size: 7.2,
+      y: MARGEM.base - 29,
+      size: tamanho,
       font: p.regular,
       color: TINTA.suave,
     });
     const texto = `Página ${indice + 1} de ${total}`;
-    const w = p.regular.widthOfTextAtSize(texto, 7.2);
+    const w = p.regular.widthOfTextAtSize(texto, tamanho);
     pagina.drawText(texto, {
       x: A4.largura - MARGEM.direita - w,
-      y: MARGEM.base - 30,
-      size: 7.2,
+      y: MARGEM.base - 29,
+      size: tamanho,
       font: p.regular,
       color: TINTA.suave,
     });
-    // Quem receber o documento precisa poder refazer a conta: o endereço do
-    // aplicativo vai em todas as páginas, inclusive nas que forem impressas soltas.
-    const endereco = sanear(`Refaça este cálculo em ${ENDERECO} | Fontes e código em ${REPOSITORIO}`);
-    const le = p.regular.widthOfTextAtSize(endereco, 7.2);
-    pagina.drawText(endereco, {
-      x: (A4.largura - le) / 2,
-      y: MARGEM.base - 41,
-      size: 7.2,
-      font: p.regular,
-      color: TINTA.marca,
+
+    // Quem receber o documento precisa poder refazer a conta e conferir de onde
+    // veio cada regra. Os dois endereços vão em todas as páginas, clicáveis,
+    // inclusive nas que forem impressas soltas.
+    const partes: { texto: string; url?: string }[] = [
+      { texto: "Refaça este cálculo em " },
+      { texto: ENDERECO, url: ENDERECO },
+      { texto: " | " },
+      { texto: "Fontes e código em " },
+      { texto: REPOSITORIO, url: `https://${REPOSITORIO}` },
+    ];
+    const larguras = partes.map((parte) =>
+      p.regular.widthOfTextAtSize(sanear(parte.texto), tamanho),
+    );
+    const larguraTotal = larguras.reduce((acc, valor) => acc + valor, 0);
+
+    let x = (A4.largura - larguraTotal) / 2;
+    const y = MARGEM.base - 45;
+    partes.forEach((parte, i) => {
+      const conteudo = sanear(parte.texto);
+      pagina.drawText(conteudo, {
+        x,
+        y,
+        size: tamanho,
+        font: p.regular,
+        color: parte.url ? TINTA.marca : TINTA.suave,
+      });
+      if (parte.url) marcarLink(p, pagina, parte.url, x, y, larguras[i]!, tamanho);
+      x += larguras[i]!;
     });
   });
 }
@@ -947,6 +1018,14 @@ export async function gerarMemorial(apuracao: Apuracao): Promise<Uint8Array> {
   const negrito = await doc.embedFont(StandardFonts.HelveticaBold);
   const italico = await doc.embedFont(StandardFonts.HelveticaOblique);
 
+  let marca: PDFImage | undefined;
+  try {
+    marca = await doc.embedPng(MOEDA_PNG_BASE64);
+  } catch {
+    // Sem a imagem o documento continua saindo, com a marca desenhada.
+    marca = undefined;
+  }
+
   const primeira = doc.addPage([A4.largura, A4.altura]);
   const p: Pincel = {
     doc,
@@ -956,6 +1035,7 @@ export async function gerarMemorial(apuracao: Apuracao): Promise<Uint8Array> {
     regular,
     negrito,
     italico,
+    marca,
   };
 
   const id = apuracao.parametros.identificacao;
