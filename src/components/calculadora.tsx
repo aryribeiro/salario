@@ -511,6 +511,7 @@ export function Calculadora() {
         bancarios: estado.bancarios,
         sabadoEhUtil: estado.sabadoEhUtil,
         locais: [...regionais, ...estado.feriadosLocais],
+        locaisManuais: estado.feriadosLocais,
       },
       identificacao: estado.identificacao,
     };

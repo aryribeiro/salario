@@ -12,6 +12,7 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "@ca
 
 import { formatarData, formatarCompetencia } from "./data";
 import { formatarMoeda, formatarNumero, formatarPercentual } from "./dinheiro";
+import { rotuloDaRegiao } from "./regiao";
 import type { Apuracao, CompetenciaApurada, ObrigacaoApurada } from "./tipos";
 
 const A4 = { largura: 595.28, altura: 841.89 };
@@ -405,10 +406,18 @@ function secaoParametros(p: Pincel, apuracao: Apuracao) {
     { tamanho: 8.8, espacoDepois: 4 },
   );
 
-  if (calendario.locais.length > 0) {
+  paragrafo(
+    p,
+    `Calendário de feriados: nacionais${
+      calendario.regiao === "nenhuma" ? "" : `, mais os de ${rotuloDaRegiao(calendario.regiao)}`
+    }.`,
+    { tamanho: 8.8, espacoDepois: 4 },
+  );
+
+  if (calendario.locaisManuais?.length > 0) {
     paragrafo(
       p,
-      `Feriados locais informados: ${calendario.locais
+      `Feriados informados à mão por quem calculou: ${calendario.locaisManuais
         .map((f) => `${formatarData(f.data)}${f.nome ? ` (${f.nome})` : ""}`)
         .join("; ")}.`,
       { tamanho: 8.8, espacoDepois: 4 },

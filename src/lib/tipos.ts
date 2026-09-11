@@ -66,7 +66,10 @@ export interface ConfigCalendario {
   bancarios: boolean;
   /** Sábado conta como dia útil. */
   sabadoEhUtil: boolean;
+  /** Feriados da região somados aos digitados à mão. Entra no cálculo. */
   locais: { data: DataISO; nome?: string }[];
+  /** Só os digitados à mão. Serve para o memorial distinguir a origem. */
+  locaisManuais: { data: DataISO; nome?: string }[];
 }
 
 export interface Identificacao {

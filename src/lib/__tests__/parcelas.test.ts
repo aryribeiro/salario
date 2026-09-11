@@ -24,7 +24,13 @@ const parametros: Parametros = {
     tetoPercentual: null,
   },
   correcao: { ativa: false, modo: "indice", indice: "IPCA", percentualManual: 0, serie: {} },
-  calendario: { bancarios: true, sabadoEhUtil: true, locais: [], regiao: "sp-capital" },
+  calendario: {
+    bancarios: true,
+    sabadoEhUtil: true,
+    locais: [],
+    locaisManuais: [],
+    regiao: "sp-capital",
+  },
   identificacao: {
     empresa: "",
     cnpj: "",

@@ -28,7 +28,13 @@ const parametros: Parametros = {
     percentualManual: 0,
     serie: { "2026-06": 0.24, "2026-07": 0.07, "2026-08": -0.32 },
   },
-  calendario: { bancarios: true, sabadoEhUtil: true, locais: [], regiao: "sp-capital" },
+  calendario: {
+    bancarios: true,
+    sabadoEhUtil: true,
+    locais: [],
+    locaisManuais: [],
+    regiao: "sp-capital",
+  },
   identificacao: {
     empresa: "Indústria Ação & Comércio Ltda.",
     cnpj: "12.345.678/0001-90",
