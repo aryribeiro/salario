@@ -585,6 +585,12 @@ export function Calculadora() {
         "A multa está ligada mas sem cláusula informada, então não entrou no cálculo. Escreva de qual convenção ou acordo coletivo ela vem.",
     });
   }
+  if (apuracao.pagamentosAposApuracao > 0) {
+    avisos.push({
+      tom: "atencao",
+      texto: `${apuracao.pagamentosAposApuracao} pagamento(s) com data posterior à data da apuração não entraram no cálculo: um pagamento futuro ainda não quitou nada. Confira a data do pagamento ou a data "Calcular até", na aba Critérios.`,
+    });
+  }
   if (apuracao.mesesSemIndice.length > 0) {
     avisos.push({
       tom: "atencao",

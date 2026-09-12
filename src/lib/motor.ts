@@ -147,7 +147,9 @@ interface NucleoApurado {
   totalDevidoCentavos: number;
   maiorAtrasoDias: number;
   emAtraso: boolean;
+  aVencer: boolean;
   quitadaNoPrazo: boolean;
+  pagamentosAposApuracao: number;
   mesesSemIndice: string[];
 }
 
@@ -163,8 +165,15 @@ function apurarNucleo(
   const pagamentos: PagamentoApurado[] = [];
   const mesesSemIndice = new Set<string>();
 
+  // Antes do vencimento não existe mora (art. 397 do Código Civil). A parcela
+  // ainda não vencida na data da apuração fica visível, mas fora do total.
+  const aVencer = vencimento > dataApuracao;
+
   for (const pagamento of ordenados) {
-    const aplicado = Math.max(0, Math.min(saldo, pagamento.valorCentavos));
+    // Pagamento datado depois da apuração ainda não aconteceu: não quita nada
+    // e é apenas registrado, para o memorial não dar por pago o que é promessa.
+    const futuro = pagamento.data > dataApuracao;
+    const aplicado = futuro ? 0 : Math.max(0, Math.min(saldo, pagamento.valorCentavos));
     saldo -= aplicado;
     const dias = Math.max(0, diferencaEmDias(vencimento, pagamento.data));
     // Um pagamento que nada amortiza, porque a parcela já estava quitada, não
@@ -173,21 +182,26 @@ function apurarNucleo(
     const situacao: PagamentoApurado["situacao"] =
       pagamento.valorCentavos <= 0
         ? "ignorado"
-        : aplicado === 0
-          ? "excedente"
-          : pagamento.data < vencimento
-            ? "adiantado"
-            : pagamento.data === vencimento
-              ? "em dia"
-              : "atrasado";
-    const excedente = situacao === "ignorado" ? 0 : pagamento.valorCentavos - aplicado;
+        : futuro
+          ? "futuro"
+          : aplicado === 0
+            ? "excedente"
+            : pagamento.data < vencimento
+              ? "adiantado"
+              : pagamento.data === vencimento
+                ? "em dia"
+                : "atrasado";
+    const excedente =
+      situacao === "ignorado" || situacao === "futuro" ? 0 : pagamento.valorCentavos - aplicado;
     const emAtraso = situacao === "atrasado";
     const info = emAtraso
       ? fatorDeCorrecao(vencimento, pagamento.data, parametros)
       : { fator: 0, ausentes: [] as string[] };
     info.ausentes.forEach((m) => mesesSemIndice.add(m));
+    const correcaoDoPagamento = emAtraso ? correcaoDe(aplicado, info.fator) : 0;
+    // Súmula 200 do TST: os juros incidem sobre o valor já corrigido.
     const jurosDoPagamento = emAtraso
-      ? jurosDoPeriodo(aplicado, vencimento, pagamento.data, juros)
+      ? jurosDoPeriodo(aplicado + correcaoDoPagamento, vencimento, pagamento.data, juros)
       : { centavos: 0, mesesSemTaxa: [] as string[] };
     jurosDoPagamento.mesesSemTaxa.forEach((m) => mesesSemIndice.add(m));
     pagamentos.push({
@@ -198,32 +212,34 @@ function apurarNucleo(
       excedenteCentavos: excedente,
       diasAtraso: emAtraso ? dias : 0,
       jurosCentavos: jurosDoPagamento.centavos,
-      correcaoCentavos: emAtraso ? correcaoDe(aplicado, info.fator) : 0,
+      correcaoCentavos: correcaoDoPagamento,
       situacao,
       descricao: pagamento.descricao,
     });
   }
 
   const saldoAberto = Math.max(0, saldo);
+  const saldoEmMora = aVencer ? 0 : saldoAberto;
   const diasAtrasoSaldo =
-    saldoAberto > 0 ? Math.max(0, diferencaEmDias(vencimento, dataApuracao)) : 0;
-  const calculoSaldo =
-    saldoAberto > 0
-      ? jurosDoPeriodo(saldoAberto, vencimento, dataApuracao, juros)
-      : { centavos: 0, mesesSemTaxa: [] as string[] };
-  calculoSaldo.mesesSemTaxa.forEach((m) => mesesSemIndice.add(m));
-  const jurosSaldo = calculoSaldo.centavos;
+    saldoEmMora > 0 ? Math.max(0, diferencaEmDias(vencimento, dataApuracao)) : 0;
   const correcaoSaldoInfo =
-    saldoAberto > 0 && diasAtrasoSaldo > 0
+    saldoEmMora > 0 && diasAtrasoSaldo > 0
       ? fatorDeCorrecao(vencimento, dataApuracao, parametros)
       : { fator: 0, ausentes: [] as string[] };
   correcaoSaldoInfo.ausentes.forEach((m) => mesesSemIndice.add(m));
-  const correcaoSaldo = saldoAberto > 0 ? correcaoDe(saldoAberto, correcaoSaldoInfo.fator) : 0;
+  const correcaoSaldo = saldoEmMora > 0 ? correcaoDe(saldoEmMora, correcaoSaldoInfo.fator) : 0;
+  // Súmula 200 do TST também aqui: juros sobre o saldo corrigido.
+  const calculoSaldo =
+    saldoEmMora > 0
+      ? jurosDoPeriodo(saldoEmMora + correcaoSaldo, vencimento, dataApuracao, juros)
+      : { centavos: 0, mesesSemTaxa: [] as string[] };
+  calculoSaldo.mesesSemTaxa.forEach((m) => mesesSemIndice.add(m));
+  const jurosSaldo = calculoSaldo.centavos;
 
   const pagoComAtraso = somar(
     pagamentos.filter((p) => p.situacao === "atrasado").map((p) => p.valorAplicadoCentavos),
   );
-  const valorEmAtraso = pagoComAtraso + saldoAberto;
+  const valorEmAtraso = pagoComAtraso + saldoEmMora;
   const maiorAtrasoDias = Math.max(diasAtrasoSaldo, ...pagamentos.map((p) => p.diasAtraso), 0);
   const emAtraso = valorEmAtraso > 0 && maiorAtrasoDias > 0;
 
@@ -263,10 +279,12 @@ function apurarNucleo(
     multaCentavos,
     correcaoCentavos: correcaoTotal,
     encargosCentavos: encargos,
-    totalDevidoCentavos: saldoAberto + encargos,
+    totalDevidoCentavos: saldoEmMora + encargos,
     maiorAtrasoDias,
     emAtraso,
+    aVencer,
     quitadaNoPrazo: saldoAberto === 0 && !emAtraso,
+    pagamentosAposApuracao: pagamentos.filter((p) => p.situacao === "futuro").length,
     mesesSemIndice: [...mesesSemIndice].sort(),
   };
 }
@@ -372,7 +390,8 @@ export function apurar(
   const totalJuros = somar(todas.map((c) => c.jurosCentavos));
   const totalMulta = somar(todas.map((c) => c.multaCentavos));
   const totalCorrecao = somar(todas.map((c) => c.correcaoCentavos));
-  const totalSaldo = somar(todas.map((c) => c.saldoAbertoCentavos));
+  const totalSaldo = somar(todas.map((c) => (c.aVencer ? 0 : c.saldoAbertoCentavos)));
+  const totalAVencer = somar(todas.map((c) => (c.aVencer ? c.saldoAbertoCentavos : 0)));
 
   return {
     competencias: apuradas,
@@ -388,8 +407,10 @@ export function apurar(
     totalCorrecaoCentavos: totalCorrecao,
     totalEncargosCentavos: totalJuros + totalMulta + totalCorrecao,
     totalGeralCentavos: totalSaldo + totalJuros + totalMulta + totalCorrecao,
+    totalAVencerCentavos: totalAVencer,
+    pagamentosAposApuracao: somar(todas.map((c) => c.pagamentosAposApuracao)),
     competenciasComAtraso: todas.filter((c) => c.emAtraso).length,
-    competenciasEmAberto: todas.filter((c) => c.saldoAbertoCentavos > 0).length,
+    competenciasEmAberto: todas.filter((c) => !c.aVencer && c.saldoAbertoCentavos > 0).length,
     maiorAtrasoDias: todas.reduce((max, c) => Math.max(max, c.maiorAtrasoDias), 0),
     mesesSemIndice: [...mesesSemIndice].sort(),
     parametros,

@@ -8,6 +8,7 @@ import { Aviso, Botao, Cartao, Etiqueta, ValorDestaque } from "./ui";
 
 function Situacao({ item }: { item: CompetenciaApurada | ObrigacaoApurada }) {
   if (item.quitadaNoPrazo) return <Etiqueta tom="ok">paga no prazo</Etiqueta>;
+  if (item.aVencer) return <Etiqueta tom="neutro">a vencer</Etiqueta>;
   if (item.saldoAbertoCentavos > 0) return <Etiqueta tom="alerta">em aberto</Etiqueta>;
   return <Etiqueta tom="atencao">paga com atraso</Etiqueta>;
 }
@@ -57,7 +58,7 @@ function LinhaDetalhe({
               <span className="first-letter:uppercase">{titulo}</span>
             </p>
             <p className="mt-0.5 text-xs text-suave">
-              vencia em {formatarData(item.vencimento)}
+              {item.aVencer ? "vence em" : "vencia em"} {formatarData(item.vencimento)}
               {item.maiorAtrasoDias > 0 && ` · atraso de até ${item.maiorAtrasoDias} dias`}
             </p>
           </div>
@@ -101,7 +102,9 @@ function LinhaDetalhe({
                           ? "no prazo"
                           : p.situacao === "excedente"
                             ? "além do devido"
-                            : "sem valor"}
+                            : p.situacao === "futuro"
+                              ? "após a apuração"
+                              : "sem valor"}
                   </td>
                   <td className="py-1.5 text-right">{p.diasAtraso > 0 ? `${p.diasAtraso} d` : "—"}</td>
                   <td className="py-1.5 text-right">{formatarMoeda(p.valorAplicadoCentavos)}</td>
@@ -225,6 +228,13 @@ export function Resumo({
         )}
         {parametros.correcao.ativa && (
           <ValorDestaque rotulo="Correção" centavos={apuracao.totalCorrecaoCentavos} />
+        )}
+        {apuracao.totalAVencerCentavos > 0 && (
+          <ValorDestaque
+            rotulo="A vencer"
+            centavos={apuracao.totalAVencerCentavos}
+            detalhe="ainda no prazo; fora do total"
+          />
         )}
       </div>
 

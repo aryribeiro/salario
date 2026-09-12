@@ -301,6 +301,8 @@ describe("apuração de uma competência", () => {
 describe("juros por série mensal (taxa legal do art. 406 do Código Civil)", () => {
   const comSerie = (serie: Record<string, number>): Parametros => ({
     ...parametrosBase,
+    // Os pagamentos destes cenários são de março; a apuração precisa vir depois.
+    dataApuracao: "2026-04-30",
     juros: {
       ativo: true,
       modo: "serie",
@@ -342,7 +344,11 @@ describe("juros por série mensal (taxa legal do art. 406 do Código Civil)", ()
         salarioCentavos: 300_000,
         pagamentos: [{ id: "p1", data: "2026-03-10", valorCentavos: 300_000 }],
       }),
-      { ...parametrosBase, multa: { ...parametrosBase.multa, ativa: false } },
+      {
+        ...parametrosBase,
+        dataApuracao: "2026-04-30",
+        multa: { ...parametrosBase.multa, ativa: false },
+      },
     );
     // pelo mês comercial: 300.000 x 1% x 32/30 = 3.200
     expect(emTaxaFixa.jurosCentavos).toBe(3_200);
@@ -361,7 +367,67 @@ describe("juros por série mensal (taxa legal do art. 406 do Código Civil)", ()
   });
 });
 
+describe("mora só depois do vencimento, e pagamento só depois de acontecer", () => {
+  it("competência ainda não vencida aparece a vencer e fica fora do total", () => {
+    // Fevereiro/2026 vence em 06/03; apurada em 01/03 ainda não está em mora.
+    const r = apurar(
+      [competencia({ ano: 2026, mes: 2, salarioCentavos: 300_000, pagamentos: [] })],
+      { ...parametrosBase, dataApuracao: "2026-03-01" },
+    );
+    const c = r.competencias[0]!;
+    expect(c.aVencer).toBe(true);
+    expect(c.emAtraso).toBe(false);
+    expect(c.quitadaNoPrazo).toBe(false);
+    expect(c.saldoAbertoCentavos).toBe(300_000);
+    expect(c.totalDevidoCentavos).toBe(0);
+    expect(r.totalGeralCentavos).toBe(0);
+    expect(r.totalAVencerCentavos).toBe(300_000);
+    expect(r.competenciasEmAberto).toBe(0);
+  });
+
+  it("pagamento datado depois da apuração não quita nem gera juros até lá", () => {
+    const r = apurar(
+      [
+        competencia({
+          salarioCentavos: 300_000,
+          pagamentos: [{ id: "p", data: "2031-01-15", valorCentavos: 300_000 }],
+        }),
+      ],
+      { ...parametrosBase, multa: { ...parametrosBase.multa, ativa: false } },
+    );
+    const c = r.competencias[0]!;
+    expect(c.pagamentos[0]!.situacao).toBe("futuro");
+    expect(c.pagamentos[0]!.valorAplicadoCentavos).toBe(0);
+    expect(c.saldoAbertoCentavos).toBe(300_000);
+    // juros do saldo de 06/02 a 06/03: 300.000 x 1% x 28/30
+    expect(c.jurosCentavos).toBe(2_800);
+    expect(r.pagamentosAposApuracao).toBe(1);
+  });
+});
+
 describe("correção monetária", () => {
+  it("juros incidem sobre o valor corrigido, Súmula 200 do TST", () => {
+    const r = apurarCompetencia(
+      competencia({ salarioCentavos: 100_000, pagamentos: [] }),
+      {
+        ...parametrosBase,
+        dataApuracao: "2026-04-06",
+        multa: { ...parametrosBase.multa, ativa: false },
+        correcao: {
+          ativa: true,
+          modo: "indice",
+          indice: "IPCA",
+          percentualManual: 0,
+          serie: { "2026-02": 1, "2026-03": 1 },
+        },
+      },
+    );
+    // 06/02 a 06/04 = 59 dias; correção 1,01 x 1,01 = 2.010
+    expect(r.correcaoCentavos).toBe(2_010);
+    // juros sobre 102.010: x 1% x 59/30 = 2.006,2 -> 2.006
+    expect(r.jurosCentavos).toBe(2_006);
+  });
+
   it("acumula a variação mensal informada pela série", () => {
     const r = apurarCompetencia(
       competencia({
@@ -370,6 +436,8 @@ describe("correção monetária", () => {
       }),
       {
         ...parametrosBase,
+        // O pagamento é de abril; a apuração precisa vir depois dele.
+        dataApuracao: "2026-04-30",
         correcao: {
           ativa: true,
           modo: "indice",
@@ -392,6 +460,8 @@ describe("correção monetária", () => {
       }),
       {
         ...parametrosBase,
+        // O pagamento é de abril; a apuração precisa vir depois dele.
+        dataApuracao: "2026-04-30",
         correcao: {
           ativa: true,
           modo: "indice",
@@ -413,6 +483,8 @@ describe("correção monetária", () => {
       }),
       {
         ...parametrosBase,
+        // O pagamento é de abril; a apuração precisa vir depois dele.
+        dataApuracao: "2026-04-30",
         correcao: {
           ativa: true,
           modo: "indice",

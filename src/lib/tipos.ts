@@ -103,7 +103,14 @@ export interface Parametros {
  * "excedente": pagamento feito quando a parcela já estava quitada. Não gera
  * atraso nem encargo; fica registrado para quem lê saber que o dinheiro entrou.
  */
-export type SituacaoPagamento = "adiantado" | "em dia" | "atrasado" | "excedente" | "ignorado";
+export type SituacaoPagamento =
+  | "adiantado"
+  | "em dia"
+  | "atrasado"
+  | "excedente"
+  /** Datado depois da data da apuração: ainda não aconteceu, nada quita. */
+  | "futuro"
+  | "ignorado";
 
 export interface PagamentoApurado {
   id: string;
@@ -141,7 +148,11 @@ export interface CompetenciaApurada {
   totalDevidoCentavos: Centavos;
   maiorAtrasoDias: number;
   emAtraso: boolean;
+  /** Vencimento posterior à data da apuração: sem mora, fora do total. */
+  aVencer: boolean;
   quitadaNoPrazo: boolean;
+  /** Pagamentos datados depois da apuração, registrados mas não aplicados. */
+  pagamentosAposApuracao: number;
   mesesSemIndice: string[];
 }
 
@@ -184,7 +195,9 @@ export interface ObrigacaoApurada {
   totalDevidoCentavos: Centavos;
   maiorAtrasoDias: number;
   emAtraso: boolean;
+  aVencer: boolean;
   quitadaNoPrazo: boolean;
+  pagamentosAposApuracao: number;
   mesesSemIndice: string[];
 }
 
@@ -199,6 +212,10 @@ export interface Apuracao {
   totalCorrecaoCentavos: Centavos;
   totalEncargosCentavos: Centavos;
   totalGeralCentavos: Centavos;
+  /** Parcelas ainda não vencidas na data da apuração: visíveis, fora do total. */
+  totalAVencerCentavos: Centavos;
+  /** Pagamentos datados depois da apuração, ignorados no cálculo. */
+  pagamentosAposApuracao: number;
   competenciasComAtraso: number;
   competenciasEmAberto: number;
   maiorAtrasoDias: number;

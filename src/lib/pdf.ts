@@ -521,6 +521,30 @@ function secaoParametros(p: Pincel, apuracao: Apuracao) {
     { tamanho: 8.8 },
   );
 
+  if (correcao.ativa && juros.ativo) {
+    paragrafo(
+      p,
+      "Os juros de mora incidem sobre o valor já corrigido, conforme a Súmula 200 do TST.",
+      { tamanho: 8.8 },
+    );
+  }
+
+  if (apuracao.totalAVencerCentavos > 0) {
+    paragrafo(
+      p,
+      `Parcelas com vencimento posterior à data da apuração, no total de ${formatarMoeda(apuracao.totalAVencerCentavos)}, aparecem como "a vencer" e não entram no total: antes do vencimento não há mora (art. 397 do Código Civil).`,
+      { tamanho: 8.6, cor: TINTA.suave },
+    );
+  }
+
+  if (apuracao.pagamentosAposApuracao > 0) {
+    paragrafo(
+      p,
+      `Atenção: ${apuracao.pagamentosAposApuracao} pagamento(s) com data posterior à apuração foram registrados, mas não considerados quitados.`,
+      { tamanho: 8.6, cor: TINTA.alerta },
+    );
+  }
+
   if (apuracao.mesesSemIndice.length > 0) {
     paragrafo(
       p,
@@ -555,10 +579,12 @@ function secaoCompetencia(p: Pincel, c: ItemApurado, apuracao: Apuracao) {
   });
   const situacao = c.quitadaNoPrazo
     ? "PAGA NO PRAZO"
-    : c.saldoAbertoCentavos > 0
-      ? "EM ABERTO"
-      : "PAGA COM ATRASO";
-  const cor = c.quitadaNoPrazo ? TINTA.destaque : TINTA.alerta;
+    : c.aVencer
+      ? "A VENCER"
+      : c.saldoAbertoCentavos > 0
+        ? "EM ABERTO"
+        : "PAGA COM ATRASO";
+  const cor = c.quitadaNoPrazo ? TINTA.destaque : c.aVencer ? TINTA.suave : TINTA.alerta;
   const largura = p.negrito.widthOfTextAtSize(situacao, 8);
   p.pagina.drawText(situacao, {
     x: A4.largura - MARGEM.direita - largura,
@@ -598,7 +624,9 @@ function secaoCompetencia(p: Pincel, c: ItemApurado, apuracao: Apuracao) {
           ? "pago no prazo"
           : pg.situacao === "excedente"
             ? "além do devido"
-            : "sem valor",
+            : pg.situacao === "futuro"
+              ? "após a apuração"
+              : "sem valor",
     pg.diasAtraso > 0 ? String(pg.diasAtraso) : "-",
     formatarNumero(pg.valorAplicadoCentavos),
     pg.jurosCentavos > 0 ? formatarNumero(pg.jurosCentavos) : "-",
@@ -607,9 +635,9 @@ function secaoCompetencia(p: Pincel, c: ItemApurado, apuracao: Apuracao) {
 
   if (c.saldoAbertoCentavos > 0) {
     linhas.push([
-      "em aberto",
-      "não pago",
-      String(c.diasAtrasoSaldo),
+      c.aVencer ? "a vencer" : "em aberto",
+      c.aVencer ? "ainda no prazo" : "não pago",
+      c.aVencer ? "-" : String(c.diasAtrasoSaldo),
       formatarNumero(c.saldoAbertoCentavos),
       c.jurosSaldoCentavos > 0 ? formatarNumero(c.jurosSaldoCentavos) : "-",
       c.correcaoSaldoCentavos > 0 ? formatarNumero(c.correcaoSaldoCentavos) : "-",
@@ -631,7 +659,10 @@ function secaoCompetencia(p: Pincel, c: ItemApurado, apuracao: Apuracao) {
     resumo.push(["Correção monetária", formatarMoeda(c.correcaoCentavos)]);
   }
   if (c.saldoAbertoCentavos > 0) {
-    resumo.push(["Principal em aberto", formatarMoeda(c.saldoAbertoCentavos)]);
+    resumo.push([
+      c.aVencer ? "Principal a vencer, fora do total" : "Principal em aberto",
+      formatarMoeda(c.saldoAbertoCentavos),
+    ]);
   }
   resumo.push(["Total desta parcela", formatarMoeda(c.totalDevidoCentavos)]);
 
