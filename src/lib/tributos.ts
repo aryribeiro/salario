@@ -15,58 +15,69 @@ export const TETO_INSS_2026: Centavos = 847_555;
 export const DEDUCAO_DEPENDENTE_2026: Centavos = 18_959;
 export const DESCONTO_SIMPLIFICADO_2026: Centavos = 60_720;
 
+/**
+ * Alíquotas em milésimos e contas em inteiros. Somar "parcela x 0,075" em
+ * ponto flutuante deixava 2.731 valores de remuneração um centavo abaixo do
+ * arredondamento meio-para-cima, exatamente nos casos de meio centavo exato.
+ */
 interface Faixa {
   ate: Centavos;
-  aliquota: number;
+  /** 75 = 7,5% */
+  milesimos: number;
 }
 
 /** Faixas progressivas do INSS: a alíquota incide só sobre a parcela da faixa. */
 const FAIXAS_INSS: Faixa[] = [
-  { ate: 162_100, aliquota: 0.075 },
-  { ate: 290_284, aliquota: 0.09 },
-  { ate: 435_427, aliquota: 0.12 },
-  { ate: TETO_INSS_2026, aliquota: 0.14 },
+  { ate: 162_100, milesimos: 75 },
+  { ate: 290_284, milesimos: 90 },
+  { ate: 435_427, milesimos: 120 },
+  { ate: TETO_INSS_2026, milesimos: 140 },
 ];
 
 /** Tabela mensal do IRRF de 2026, com a parcela a deduzir de cada faixa. */
-const FAIXAS_IRRF: { ate: Centavos; aliquota: number; deduzir: Centavos }[] = [
-  { ate: 242_880, aliquota: 0, deduzir: 0 },
-  { ate: 282_665, aliquota: 0.075, deduzir: 18_216 },
-  { ate: 375_105, aliquota: 0.15, deduzir: 39_416 },
-  { ate: 466_468, aliquota: 0.225, deduzir: 67_549 },
-  { ate: Number.POSITIVE_INFINITY, aliquota: 0.275, deduzir: 90_873 },
+const FAIXAS_IRRF: { ate: Centavos; milesimos: number; deduzir: Centavos }[] = [
+  { ate: 242_880, milesimos: 0, deduzir: 0 },
+  { ate: 282_665, milesimos: 75, deduzir: 18_216 },
+  { ate: 375_105, milesimos: 150, deduzir: 39_416 },
+  { ate: 466_468, milesimos: 225, deduzir: 67_549 },
+  { ate: Number.POSITIVE_INFINITY, milesimos: 275, deduzir: 90_873 },
 ];
 
 /** Contribuição previdenciária do empregado sobre a remuneração do mês. */
 export function inss2026(remuneracao: Centavos): Centavos {
-  const base = Math.min(Math.max(0, remuneracao), TETO_INSS_2026);
+  if (!Number.isFinite(remuneracao)) return 0;
+  const base = Math.min(Math.max(0, Math.round(remuneracao)), TETO_INSS_2026);
   let anterior = 0;
-  let total = 0;
+  let totalEmMilesimos = 0;
   for (const faixa of FAIXAS_INSS) {
     if (base <= anterior) break;
     const parcela = Math.min(base, faixa.ate) - anterior;
-    total += parcela * faixa.aliquota;
+    totalEmMilesimos += parcela * faixa.milesimos;
     anterior = faixa.ate;
   }
-  return arredondar(total);
+  return arredondar(totalEmMilesimos / 1000);
 }
 
 /** Imposto pela tabela, antes do redutor da Lei 15.270/2025. */
 export function irrfPelaTabela(base: Centavos): Centavos {
-  if (base <= 0) return 0;
-  const faixa = FAIXAS_IRRF.find((f) => base <= f.ate)!;
-  return Math.max(0, arredondar(base * faixa.aliquota - faixa.deduzir));
+  if (!Number.isFinite(base) || base <= 0) return 0;
+  const inteira = Math.round(base);
+  const faixa = FAIXAS_IRRF.find((f) => inteira <= f.ate)!;
+  return Math.max(0, arredondar((inteira * faixa.milesimos) / 1000 - faixa.deduzir));
 }
 
 /**
  * Redutor mensal da Lei 15.270/2025, em vigor desde janeiro de 2026: zera o
  * imposto até R$ 5.000,00 de rendimento e decresce de forma linear até R$
- * 7.350,00.
+ * 7.350,00. O coeficiente 0,133145 vira 133.145 milionésimos para a conta
+ * ficar inteira.
  */
 export function redutorLei15270(rendimentoMensal: Centavos): Centavos {
-  if (rendimentoMensal <= 500_000) return 31_289;
-  if (rendimentoMensal > 735_000) return 0;
-  return Math.max(0, arredondar(97_862 - 0.133145 * rendimentoMensal));
+  if (!Number.isFinite(rendimentoMensal)) return 0;
+  const renda = Math.round(rendimentoMensal);
+  if (renda <= 500_000) return 31_289;
+  if (renda > 735_000) return 0;
+  return Math.max(0, arredondar((97_862 * 1_000_000 - 133_145 * renda) / 1_000_000));
 }
 
 export interface EstimativaLiquido {

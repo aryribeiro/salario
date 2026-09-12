@@ -24,7 +24,10 @@ const SERIES = {
 type NomeSerie = keyof typeof SERIES;
 
 const TAXA_LEGAL = "TAXA_LEGAL";
-const RE_MES = /^\d{4}-\d{2}$/;
+const RE_MES = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/** Erro que não adianta repetir: o pedido é que está errado, não a origem. */
+class ErroDefinitivo extends Error {}
 const VALIDADE_MS = 6 * 60 * 60 * 1000;
 const RESERVA_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -103,7 +106,8 @@ async function buscarSerie(codigo: number, de: string, ate: string): Promise<Rec
       if (resposta.status >= 500 || resposta.status === 429) {
         throw new Error(`status ${resposta.status}`);
       }
-      if (!resposta.ok) throw new Error(`status ${resposta.status}`);
+      // Qualquer outro 4xx é defeito do pedido; repetir só martelaria a origem.
+      if (!resposta.ok) throw new ErroDefinitivo(`status ${resposta.status}`);
 
       const bruto: unknown = await resposta.json();
       if (!Array.isArray(bruto)) throw new Error("formato inesperado");
@@ -118,6 +122,7 @@ async function buscarSerie(codigo: number, de: string, ate: string): Promise<Rec
       }
       return valores;
     } catch (erro) {
+      if (erro instanceof ErroDefinitivo) throw erro;
       ultimoErro = erro;
       if (tentativa < 3) {
         const base = 400 * 2 ** (tentativa - 1);
@@ -232,7 +237,13 @@ export async function GET(request: Request) {
       },
       { headers: CABECALHOS },
     );
-  } catch {
+  } catch (erro) {
+    if (erro instanceof ErroDefinitivo) {
+      return NextResponse.json(
+        { erro: "O Banco Central recusou o pedido. Confira o período informado." },
+        { status: 400, headers: { "Cache-Control": "no-store" } },
+      );
+    }
     if (guardado) {
       // Origem fora do ar, mas existe cópia anterior: melhor um número datado
       // do que nenhum número, desde que o aviso diga a idade da cópia.

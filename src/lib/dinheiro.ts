@@ -45,10 +45,17 @@ export function lerValorEmCentavos(entrada: string): Centavos | null {
     const ultima = partes[partes.length - 1]!;
     if (partes.length > 2 || ultima.length === 3) texto = texto.replace(/\./g, "");
   }
-  if (!/^-?\d*\.?\d*$/.test(texto) || texto === "" || texto === "-") return null;
-  const numero = Number(texto);
-  if (!Number.isFinite(numero)) return null;
-  return paraCentavos(numero);
+  if (!/^-?\d*\.?\d*$/.test(texto) || texto === "" || texto === "-" || texto === ".") return null;
+  // Contas em texto, não em ponto flutuante: "1,005" x 100 daria 100,4999...
+  // e perderia o centavo que a regra do meio-para-cima manda dar.
+  const negativo = texto.startsWith("-");
+  const corpo = negativo ? texto.slice(1) : texto;
+  const [inteiro = "", decimal = ""] = corpo.split(".");
+  const doisDecimais = `${decimal}00`.slice(0, 2);
+  let centavos = Number(inteiro || "0") * 100 + Number(doisDecimais);
+  if (decimal.length > 2 && Number(decimal[2]) >= 5) centavos += 1;
+  if (!Number.isFinite(centavos)) return null;
+  return negativo ? -centavos : centavos;
 }
 
 const FORMATADOR = new Intl.NumberFormat("pt-BR", {

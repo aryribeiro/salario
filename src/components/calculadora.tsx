@@ -21,6 +21,7 @@ import { apurarFGTS, type EncargoFGTS } from "@/lib/fgts";
 import { apurar, mesesNecessarios } from "@/lib/motor";
 import {
   calcularRemuneracaoFerias,
+  valorDevidoDasFerias,
   vencimentoDecimoPrimeira,
   vencimentoDecimoSegunda,
   vencimentoFerias,
@@ -82,11 +83,7 @@ function anosEnvolvidos(estado: Estado): number[] {
 }
 
 function remuneracaoDasFerias(item: ItemFerias): number {
-  const bruto =
-    item.modo === "informar"
-      ? (item.valorInformado ?? 0)
-      : calcularRemuneracaoFerias(item.salarioBase ?? 0, item.dias, item.diasVendidos).totalCentavos;
-  return item.foraDoPeriodoConcessivo ? bruto * 2 : bruto;
+  return valorDevidoDasFerias(item);
 }
 
 function pagamentosValidos(linhas: LinhaPagamento[]) {
@@ -394,7 +391,9 @@ export function Calculadora() {
         valorDevidoCentavos: valor,
         pagamentos: pagamentosValidos(f.pagamentos),
         observacao: f.foraDoPeriodoConcessivo
-          ? "Valor dobrado porque as férias foram gozadas fora do período concessivo (art. 137 da CLT e Súmula 81 do TST). A dobra não decorre do atraso no pagamento."
+          ? f.modo === "calcular" && f.diasVendidos > 0
+            ? "Férias e terço dobrados porque o descanso foi gozado fora do período concessivo (art. 137 da CLT e Súmula 81 do TST); o abono pecuniário não foi dobrado. A dobra não decorre do atraso no pagamento."
+            : "Valor dobrado porque as férias foram gozadas fora do período concessivo (art. 137 da CLT e Súmula 81 do TST). A dobra não decorre do atraso no pagamento."
           : undefined,
       });
     }

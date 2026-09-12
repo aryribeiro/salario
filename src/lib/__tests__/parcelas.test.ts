@@ -5,6 +5,7 @@ import { apurar } from "../motor";
 import {
   calcularRemuneracaoFerias,
   decimoProporcional,
+  valorDevidoDasFerias,
   vencimentoDecimoPrimeira,
   vencimentoDecimoSegunda,
   vencimentoFerias,
@@ -68,6 +69,37 @@ describe("férias", () => {
     expect(r.abonoCentavos).toBe(100_000);
     expect(r.tercoAbonoCentavos).toBe(33_333);
     expect(r.totalCentavos).toBe(400_000);
+  });
+
+  it("a dobra do art. 137 alcança férias e terço, não o abono", () => {
+    const semDobra = valorDevidoDasFerias({
+      modo: "calcular",
+      salarioBase: 300_000,
+      dias: 20,
+      diasVendidos: 10,
+      valorInformado: null,
+      foraDoPeriodoConcessivo: false,
+    });
+    expect(semDobra).toBe(400_000);
+    const comDobra = valorDevidoDasFerias({
+      modo: "calcular",
+      salarioBase: 300_000,
+      dias: 20,
+      diasVendidos: 10,
+      valorInformado: null,
+      foraDoPeriodoConcessivo: true,
+    });
+    // descanso 200.000 + terço 66.667 = 266.667, dobrado 533.334; abono 133.333 sem dobra
+    expect(comDobra).toBe(533_334 + 133_333);
+    const informado = valorDevidoDasFerias({
+      modo: "informar",
+      salarioBase: null,
+      dias: 30,
+      diasVendidos: 0,
+      valorInformado: 400_000,
+      foraDoPeriodoConcessivo: true,
+    });
+    expect(informado).toBe(800_000);
   });
 
   it("limita a venda a dez dias e o total a trinta", () => {

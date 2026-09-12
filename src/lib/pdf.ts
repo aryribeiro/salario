@@ -834,7 +834,8 @@ function secaoFGTS(p: Pincel, apuracao: Apuracao) {
   paragrafo(
     p,
     "O depósito de 8% da remuneração é devido até o dia 20 do mês seguinte, na forma do art. 15 da Lei 8.036/1990, " +
-      "mesmo quando o salário foi pago com atraso. O recolhimento em atraso sofre juros de mora de 0,5% ao mês ou fração " +
+      "mesmo quando o salário foi pago com atraso. O recolhimento em atraso sofre juros de mora de 0,5% ao mês ou fração, " +
+      "contados do vencimento, em que cada mês iniciado conta inteiro, " +
       "e multa de 5% no mês do vencimento ou de 10% a partir do mês seguinte, conforme o art. 22 da mesma lei. " +
       "A atualização pela TR, prevista no mesmo artigo, não está incluída nestes valores.",
     { tamanho: 8.4, cor: TINTA.suave, espacoDepois: 2 },

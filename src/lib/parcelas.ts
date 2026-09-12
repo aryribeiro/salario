@@ -82,6 +82,32 @@ export function calcularRemuneracaoFerias(
   };
 }
 
+/**
+ * Valor devido de um período de férias a partir do que a pessoa informou.
+ *
+ * A dobra do art. 137 da CLT alcança a remuneração das férias e o terço. O
+ * abono pecuniário é venda de dias, não remuneração de descanso, e dobrá-lo é
+ * controvertido: aqui ele fica de fora da dobra. Quando o valor total foi
+ * digitado pronto, não há como separar, e o total inteiro é dobrado.
+ */
+export function valorDevidoDasFerias(entrada: {
+  modo: "calcular" | "informar";
+  salarioBase: number | null;
+  dias: number;
+  diasVendidos: number;
+  valorInformado: number | null;
+  foraDoPeriodoConcessivo: boolean;
+}): Centavos {
+  if (entrada.modo === "informar") {
+    const valor = Math.max(0, entrada.valorInformado ?? 0);
+    return entrada.foraDoPeriodoConcessivo ? valor * 2 : valor;
+  }
+  const c = calcularRemuneracaoFerias(entrada.salarioBase ?? 0, entrada.dias, entrada.diasVendidos);
+  const descanso = c.feriasCentavos + c.tercoFeriasCentavos;
+  const abono = c.abonoCentavos + c.tercoAbonoCentavos;
+  return (entrada.foraDoPeriodoConcessivo ? descanso * 2 : descanso) + abono;
+}
+
 /** Primeira parcela do décimo terceiro: até 30 de novembro. */
 export function vencimentoDecimoPrimeira(
   ano: number,

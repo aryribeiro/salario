@@ -21,6 +21,17 @@ describe("INSS 2026", () => {
     expect(inss2026(300_000)).toBe(24_860);
   });
 
+  it("meio centavo exato arredonda para cima, como manda a regra", () => {
+    // Auditoria de 12/09: 2.902,96 dava 236,95 em ponto flutuante.
+    // Exato: 12.157,5 + 11.536,56 + 1,44 = 23.695,5 -> 236,96.
+    expect(inss2026(290_296)).toBe(23_696);
+  });
+
+  it("o redutor também escapa do ponto flutuante", () => {
+    // 978,62 - 0,133145 x 7.000,00 = 46,605 -> 46,61
+    expect(redutorLei15270(700_000)).toBe(4_661);
+  });
+
   it("trava no teto do salário de contribuição", () => {
     expect(inss2026(TETO_INSS_2026)).toBe(98_809);
     expect(inss2026(1_500_000)).toBe(98_809);
@@ -92,6 +103,21 @@ describe("FGTS em atraso", () => {
     expect(r.percentualMulta).toBe(5);
     expect(r.multaCentavos).toBe(1_200);
     expect(r.mesesOuFracao).toBe(1);
+  });
+
+  it("mês ou fração conta do vencimento: no dia seguinte ao aniversário começa outro mês", () => {
+    // 20/02 a 20/03 é um mês; 21/03 abre o segundo. Blocos de 30 dias diriam 1.
+    const noAniversario = apurarFGTS(2026, 1, 300_000, {
+      dataApuracao: "2026-04-01",
+      dataRecolhimento: "2026-03-20",
+    });
+    expect(noAniversario.mesesOuFracao).toBe(1);
+    const umDiaDepois = apurarFGTS(2026, 1, 300_000, {
+      dataApuracao: "2026-04-01",
+      dataRecolhimento: "2026-03-21",
+    });
+    expect(umDiaDepois.mesesOuFracao).toBe(2);
+    expect(umDiaDepois.jurosCentavos).toBe(240);
   });
 
   it("recolhimento no prazo não gera encargo", () => {

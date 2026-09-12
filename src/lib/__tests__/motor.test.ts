@@ -575,6 +575,14 @@ describe("leitura de valores digitados", () => {
     expect(lerValorEmCentavos("")).toBeNull();
     expect(lerValorEmCentavos("abc")).toBeNull();
   });
+
+  it("terceira casa decimal arredonda meio-para-cima, sem ponto flutuante", () => {
+    expect(lerValorEmCentavos("1,005")).toBe(101);
+    expect(lerValorEmCentavos("0,285")).toBe(29);
+    expect(lerValorEmCentavos("2,004")).toBe(200);
+    expect(lerValorEmCentavos(",5")).toBe(50);
+    expect(lerValorEmCentavos("1234,")).toBe(123_400);
+  });
 });
 
 describe("leitura do mês digitado", () => {
