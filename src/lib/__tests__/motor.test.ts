@@ -577,6 +577,19 @@ describe("leitura de valores digitados", () => {
   });
 });
 
+describe("leitura do mês digitado", () => {
+  it("aceita o formato do navegador e o formato humano", async () => {
+    const { lerChaveMes } = await import("../data");
+    expect(lerChaveMes("2026-08")).toBe("2026-08");
+    expect(lerChaveMes("08/2026")).toBe("2026-08");
+    expect(lerChaveMes("8/2026")).toBe("2026-08");
+    expect(lerChaveMes("2026-13")).toBeNull();
+    expect(lerChaveMes("13/2026")).toBeNull();
+    expect(lerChaveMes("agosto")).toBeNull();
+    expect(lerChaveMes("")).toBeNull();
+  });
+});
+
 describe("intervalos de meses", () => {
   it("atravessa a virada do ano", () => {
     expect(intervaloDeMeses("2025-11", "2026-02")).toEqual([

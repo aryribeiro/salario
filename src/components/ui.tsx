@@ -193,6 +193,11 @@ export function CampoMoeda({
   );
 }
 
+/**
+ * Campo numérico. Apagar o conteúdo para digitar outro número não vira zero
+ * no meio do caminho: o valor anterior fica valendo até um número novo ser
+ * escrito, e o campo se recompõe ao ser deixado.
+ */
 export function CampoNumero({
   valor,
   aoMudar,
@@ -208,6 +213,16 @@ export function CampoNumero({
   minimo?: number;
 }) {
   const id = useId();
+  const paraTexto = (v: number) => (Number.isFinite(v) ? String(v) : "");
+  const [texto, setTexto] = useState(() => paraTexto(valor));
+  const [emEdicao, setEmEdicao] = useState(false);
+  const [valorVisto, setValorVisto] = useState(valor);
+
+  if (valor !== valorVisto) {
+    setValorVisto(valor);
+    if (!emEdicao) setTexto(paraTexto(valor));
+  }
+
   return (
     <Envelope {...base} id={id}>
       <div className="relative">
@@ -217,8 +232,25 @@ export function CampoNumero({
           inputMode="decimal"
           step={passo}
           min={minimo}
-          value={Number.isFinite(valor) ? valor : 0}
-          onChange={(e) => aoMudar(Number(e.target.value))}
+          value={texto}
+          onFocus={() => setEmEdicao(true)}
+          onChange={(e) => {
+            const digitado = e.target.value;
+            setTexto(digitado);
+            if (digitado.trim() === "") return;
+            const numero = Number(digitado);
+            if (Number.isFinite(numero)) aoMudar(numero);
+          }}
+          onBlur={() => {
+            setEmEdicao(false);
+            const numero = Number(texto);
+            if (texto.trim() === "" || !Number.isFinite(numero)) {
+              setTexto(paraTexto(valor));
+            } else {
+              setTexto(paraTexto(numero));
+              aoMudar(numero);
+            }
+          }}
           className={`${ESTILO_ENTRADA} ${sufixo ? "pr-12" : ""} tabular-nums`}
         />
         {sufixo && (

@@ -66,6 +66,26 @@ export function chaveMesDaData(data: DataISO): ChaveMes {
   return data.slice(0, 7);
 }
 
+/**
+ * Lê um mês digitado como "2026-08" (campo de mês do navegador) ou "08/2026"
+ * (o que uma pessoa escreve quando o navegador não oferece o seletor, como o
+ * Safari de computador). Devolve null quando não há mês reconhecível.
+ */
+export function lerChaveMes(entrada: string): ChaveMes | null {
+  const texto = (entrada ?? "").trim();
+  const iso = texto.match(/^(\d{4})-(\d{2})$/);
+  if (iso) {
+    const mes = Number(iso[2]);
+    return mes >= 1 && mes <= 12 ? `${iso[1]}-${iso[2]}` : null;
+  }
+  const humano = texto.match(/^(\d{1,2})[/\-.](\d{4})$/);
+  if (humano) {
+    const mes = Number(humano[1]);
+    return mes >= 1 && mes <= 12 ? chaveMes(Number(humano[2]), mes) : null;
+  }
+  return null;
+}
+
 export function proximoMes(ano: number, mes1a12: number): { ano: number; mes: number } {
   return mes1a12 === 12 ? { ano: ano + 1, mes: 1 } : { ano, mes: mes1a12 + 1 };
 }

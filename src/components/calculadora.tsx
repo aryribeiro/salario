@@ -9,6 +9,7 @@ import {
   formatarData,
   hojeLocalISO,
   intervaloDeMeses,
+  lerChaveMes,
   nomeDoMes,
   proximoMes,
   type DataISO,
@@ -351,12 +352,22 @@ export function Calculadora() {
    */
   const dataApuracao = ehDataISO(estado.dataApuracao) ? estado.dataApuracao : hojeLocalISO();
 
+  /**
+   * Feriados que entram em todo prazo do cálculo: os da região escolhida mais
+   * os digitados à mão. Um único lugar, para salário, 13º e FGTS não
+   * discordarem entre si.
+   */
+  const feriadosNoCalculo = useMemo(
+    () => [...feriadosDaRegiao(estado.regiao, anosEnvolvidos(estado)), ...estado.feriadosLocais],
+    [estado],
+  );
+
   const competencias = useMemo<Competencia[]>(
     () =>
       estado.salarios
-        .filter((s) => s.mes && (s.valor ?? 0) > 0)
+        .filter((s) => lerChaveMes(s.mes) && (s.valor ?? 0) > 0)
         .map((s) => {
-          const [ano, mes] = s.mes.split("-").map(Number);
+          const [ano, mes] = lerChaveMes(s.mes)!.split("-").map(Number);
           return {
             id: s.id,
             ano: ano!,
@@ -393,8 +404,8 @@ export function Calculadora() {
           id: `${d.id}-1`,
           tipo: "decimoPrimeira",
           rotulo: `13º salário de ${d.ano} — 1ª parcela`,
-          fundamento: `Vencimento em ${formatarData(vencimentoDecimoPrimeira(d.ano, estado.feriadosLocais))}: a primeira parcela vai até 30 de novembro (Lei 4.749/1965).`,
-          vencimento: vencimentoDecimoPrimeira(d.ano, estado.feriadosLocais),
+          fundamento: `Vencimento em ${formatarData(vencimentoDecimoPrimeira(d.ano, feriadosNoCalculo))}: a primeira parcela vai até 30 de novembro (Lei 4.749/1965).`,
+          vencimento: vencimentoDecimoPrimeira(d.ano, feriadosNoCalculo),
           valorDevidoCentavos: d.primeira as number,
           pagamentos: pagamentosValidos(d.pagamentosPrimeira),
         });
@@ -404,36 +415,35 @@ export function Calculadora() {
           id: `${d.id}-2`,
           tipo: "decimoSegunda",
           rotulo: `13º salário de ${d.ano} — 2ª parcela`,
-          fundamento: `Vencimento em ${formatarData(vencimentoDecimoSegunda(d.ano, estado.feriadosLocais))}: a segunda parcela vai até 20 de dezembro (Lei 4.090/1962).`,
-          vencimento: vencimentoDecimoSegunda(d.ano, estado.feriadosLocais),
+          fundamento: `Vencimento em ${formatarData(vencimentoDecimoSegunda(d.ano, feriadosNoCalculo))}: a segunda parcela vai até 20 de dezembro (Lei 4.090/1962).`,
+          vencimento: vencimentoDecimoSegunda(d.ano, feriadosNoCalculo),
           valorDevidoCentavos: d.segunda as number,
           pagamentos: pagamentosValidos(d.pagamentosSegunda),
         });
       }
     }
     return lista;
-  }, [estado.ferias, estado.decimos, estado.feriadosLocais]);
+  }, [estado.ferias, estado.decimos, feriadosNoCalculo]);
 
   const fgtsApurado = useMemo<EncargoFGTS[]>(() => {
     if (!estado.fgtsAtivo) return [];
     return estado.fgts
-      .filter((f) => f.mes && (f.remuneracao ?? 0) > 0)
+      .filter((f) => lerChaveMes(f.mes) && (f.remuneracao ?? 0) > 0)
       .map((f) => {
-        const [ano, mes] = f.mes.split("-").map(Number);
+        const [ano, mes] = lerChaveMes(f.mes)!.split("-").map(Number);
         return apurarFGTS(ano!, mes!, f.remuneracao as number, {
           dataApuracao,
           dataRecolhimento: ehDataISO(f.recolhimento) ? f.recolhimento : undefined,
           aprendiz: f.aprendiz,
-          feriadosLocais: estado.feriadosLocais,
+          feriadosLocais: feriadosNoCalculo,
         });
       });
-  }, [estado.fgtsAtivo, estado.fgts, dataApuracao, estado.feriadosLocais]);
+  }, [estado.fgtsAtivo, estado.fgts, dataApuracao, feriadosNoCalculo]);
 
   const multaSemClausula = estado.multa.ativa && estado.multa.clausula.trim().length === 0;
 
-  const parametros = useMemo<Parametros>(() => {
-    const regionais = feriadosDaRegiao(estado.regiao, anosEnvolvidos(estado));
-    return {
+  const parametros = useMemo<Parametros>(
+    () => ({
       dataApuracao,
       juros: { ...estado.juros, serie: serieJuros },
       multa: multaSemClausula ? { ...estado.multa, ativa: false } : estado.multa,
@@ -442,12 +452,13 @@ export function Calculadora() {
         regiao: estado.regiao,
         bancarios: estado.bancarios,
         sabadoEhUtil: estado.sabadoEhUtil,
-        locais: [...regionais, ...estado.feriadosLocais],
+        locais: feriadosNoCalculo,
         locaisManuais: estado.feriadosLocais,
       },
       identificacao: estado.identificacao,
-    };
-  }, [estado, dataApuracao, serie, serieJuros, multaSemClausula]);
+    }),
+    [estado, dataApuracao, feriadosNoCalculo, serie, serieJuros, multaSemClausula],
+  );
 
   const apuracao = useMemo(
     () => apurar(competencias, parametros, { obrigacoes, fgts: fgtsApurado }),
@@ -477,11 +488,22 @@ export function Calculadora() {
     avisarTexto: (t: string) => void,
     textoVazio: string,
   ) => {
-    if (!ligado || mesesDoCalculo.length === 0) return;
+    if (!ligado || mesesDoCalculo.length === 0) {
+      // Desligou, ou não há o que consultar: nada de série antiga sobrando.
+      const limpeza = window.setTimeout(() => {
+        aplicar({});
+        avisarStatus("ocioso");
+      }, 0);
+      return () => window.clearTimeout(limpeza);
+    }
     const de = mesesDoCalculo[0]!;
     const ate = mesesDoCalculo[mesesDoCalculo.length - 1]!;
     const controle = new AbortController();
     const relogio = window.setTimeout(() => {
+      // Trocar de índice ou de período descarta a série anterior na hora:
+      // um PDF baixado no meio da consulta não pode sair com o índice antigo
+      // sob o nome do novo.
+      aplicar({});
       avisarStatus("carregando");
       avisarTexto("");
       fetch(`/api/indices?indice=${indice}&de=${de}&ate=${ate}`, { signal: controle.signal })
@@ -501,6 +523,7 @@ export function Calculadora() {
         })
         .catch((e: unknown) => {
           if (e instanceof DOMException && e.name === "AbortError") return;
+          aplicar({});
           avisarStatus("erro");
           avisarTexto("Não foi possível obter o índice agora. Informe o percentual à mão.");
         });
@@ -551,7 +574,7 @@ export function Calculadora() {
     !estado.identificacao.empresa.trim() ||
     problemaNoDocumento(estado.identificacao.cnpj) !== null;
   const temParcelas = apuracao.competencias.length + apuracao.obrigacoes.length > 0;
-  const podeBaixar = temParcelas && !identificacaoIncompleta;
+  const podeBaixar = (temParcelas || apuracao.fgts.length > 0) && !identificacaoIncompleta;
 
   const baixarPdf = useCallback(async () => {
     setGerando(true);
@@ -679,13 +702,26 @@ export function Calculadora() {
             className="sem-impressao grid grid-cols-3 gap-1.5 rounded-2xl border border-borda bg-superficie p-1.5 sm:flex"
             role="tablist"
             aria-label="Seções do cálculo"
+            onKeyDown={(e) => {
+              // Setas trocam de aba, como um leitor de tela espera de um tablist.
+              if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+              e.preventDefault();
+              const atual = ABAS.findIndex((a) => a.valor === aba);
+              const passo = e.key === "ArrowRight" ? 1 : -1;
+              const proxima = ABAS[(atual + passo + ABAS.length) % ABAS.length]!;
+              setAba(proxima.valor);
+              (e.currentTarget.querySelector(`#aba-${proxima.valor}`) as HTMLElement | null)?.focus();
+            }}
           >
             {ABAS.map((item) => (
               <button
                 key={item.valor}
+                id={`aba-${item.valor}`}
                 type="button"
                 role="tab"
                 aria-selected={aba === item.valor}
+                aria-controls="painel-da-aba"
+                tabIndex={aba === item.valor ? 0 : -1}
                 onClick={() => setAba(item.valor)}
                 className={`flex-1 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
                   aba === item.valor
@@ -744,6 +780,7 @@ export function Calculadora() {
             </Aviso>
           ))}
 
+          <div id="painel-da-aba" role="tabpanel" aria-labelledby={`aba-${aba}`} className="space-y-5">
           {aba === "identificacao" && (
             <AbaIdentificacao
               estado={estado}
@@ -767,6 +804,7 @@ export function Calculadora() {
               mensagemJuros={mensagemJuros}
             />
           )}
+          </div>
         </div>
 
         <aside className="lg:sticky lg:top-4 lg:h-fit">
@@ -813,9 +851,10 @@ function AbaSalario({
 
   const adicionar = () => {
     const ultimo = estado.salarios[estado.salarios.length - 1];
-    let proximo = mesAnterior(estado.dataApuracao);
-    if (ultimo?.mes) {
-      const [ano, mes] = ultimo.mes.split("-").map(Number);
+    let proximo = mesAnterior(ehDataISO(estado.dataApuracao) ? estado.dataApuracao : hojeLocalISO());
+    const chaveDoUltimo = ultimo ? lerChaveMes(ultimo.mes) : null;
+    if (chaveDoUltimo) {
+      const [ano, mes] = chaveDoUltimo.split("-").map(Number);
       const seguinte = proximoMes(ano!, mes!);
       proximo = chaveMes(seguinte.ano, seguinte.mes);
     }
@@ -835,7 +874,8 @@ function AbaSalario({
       >
         <div className="space-y-4">
           {estado.salarios.map((item) => {
-            const [ano, mes] = item.mes ? item.mes.split("-").map(Number) : [0, 0];
+            const chave = lerChaveMes(item.mes);
+            const [ano, mes] = chave ? chave.split("-").map(Number) : [0, 0];
             const rotulo = ano ? `${nomeDoMes(mes!)} de ${ano}` : "competência sem mês";
             return (
               <div key={item.id} className="rounded-2xl border border-borda p-4">
@@ -851,7 +891,12 @@ function AbaSalario({
                     tipo="month"
                     valor={item.mes}
                     aoMudar={(v) => atualizar(item.id, { mes: v })}
-                    ajuda="o mês do serviço, não o mês do pagamento"
+                    ajuda={
+                      item.mes && !chave
+                        ? "não entendi este mês; escreva como 08/2026"
+                        : "o mês do serviço, não o mês do pagamento"
+                    }
+                    erro={item.mes && !chave ? "Mês não reconhecido." : undefined}
                   />
                   <CampoMoeda
                     rotulo="Valor devido no mês"
@@ -1168,13 +1213,23 @@ function AbaDecimo({
                 rotulo="1ª parcela"
                 centavos={item.primeira}
                 aoMudar={(v) => atualizar(item.id, { primeira: v })}
-                ajuda={`vence em ${formatarData(vencimentoDecimoPrimeira(item.ano, estado.feriadosLocais))}`}
+                ajuda={`vence em ${formatarData(
+                  vencimentoDecimoPrimeira(item.ano, [
+                    ...feriadosDaRegiao(estado.regiao, [item.ano]),
+                    ...estado.feriadosLocais,
+                  ]),
+                )}`}
               />
               <CampoMoeda
                 rotulo="2ª parcela"
                 centavos={item.segunda}
                 aoMudar={(v) => atualizar(item.id, { segunda: v })}
-                ajuda={`vence em ${formatarData(vencimentoDecimoSegunda(item.ano, estado.feriadosLocais))}`}
+                ajuda={`vence em ${formatarData(
+                  vencimentoDecimoSegunda(item.ano, [
+                    ...feriadosDaRegiao(estado.regiao, [item.ano]),
+                    ...estado.feriadosLocais,
+                  ]),
+                )}`}
               />
             </Grade>
 

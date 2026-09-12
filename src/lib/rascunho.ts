@@ -12,7 +12,14 @@
  *      anterior continua funcionando, para ninguém perder trabalho.
  */
 
-import { chaveMes, ehDataISO, hojeLocalISO, proximoMes, type DataISO } from "./data";
+import {
+  chaveMes,
+  ehDataISO,
+  hojeLocalISO,
+  lerChaveMes,
+  proximoMes,
+  type DataISO,
+} from "./data";
 import type { Regiao } from "./regiao";
 import type { Parametros } from "./tipos";
 
@@ -213,8 +220,7 @@ const booleano = (v: unknown, padrao: boolean) => (typeof v === "boolean" ? v : 
 const umDe = <T extends string>(v: unknown, opcoes: readonly T[], padrao: T): T =>
   typeof v === "string" && (opcoes as readonly string[]).includes(v) ? (v as T) : padrao;
 const dataOuVazia = (v: unknown): DataISO => (typeof v === "string" && ehDataISO(v) ? v : "");
-const mesOuVazio = (v: unknown): string =>
-  typeof v === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(v) ? v : "";
+const mesOuVazio = (v: unknown): string => (typeof v === "string" ? (lerChaveMes(v) ?? "") : "");
 const id = (v: unknown) => (typeof v === "string" && v ? v : novoId());
 
 function pagamentos(v: unknown): LinhaPagamento[] {

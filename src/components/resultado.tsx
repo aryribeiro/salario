@@ -200,7 +200,10 @@ export function Resumo({
   aoCorrigirIdentificacao: () => void;
 }) {
   const { parametros } = apuracao;
-  const nada = apuracao.competencias.length === 0 && apuracao.obrigacoes.length === 0;
+  const nada =
+    apuracao.competencias.length === 0 &&
+    apuracao.obrigacoes.length === 0 &&
+    apuracao.fgts.length === 0;
   const semAtraso = !nada && apuracao.totalGeralCentavos === 0 && apuracao.maiorAtrasoDias === 0;
 
   return (
@@ -357,8 +360,8 @@ export function Detalhamento({ apuracao }: { apuracao: Apuracao }) {
                 </tr>
               </thead>
               <tbody className="tabular-nums">
-                {apuracao.fgts.map((f) => (
-                  <tr key={f.competencia} className="border-t border-borda">
+                {apuracao.fgts.map((f, indice) => (
+                  <tr key={`${f.competencia}-${indice}`} className="border-t border-borda">
                     <td className="py-1.5">{f.competencia}</td>
                     <td className="py-1.5">{formatarData(f.vencimento)}</td>
                     <td className="py-1.5 text-right">
