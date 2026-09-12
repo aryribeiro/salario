@@ -53,6 +53,12 @@ export interface ConfigMulta {
   clausula: string;
   /** Teto opcional, em percentual do salário da competência. */
   tetoPercentual: number | null;
+  /**
+   * Cláusulas de norma coletiva costumam punir o atraso do SALÁRIO. Estender a
+   * multa a férias e décimo terceiro é escolha de quem calcula, declarada no
+   * memorial. Ausente ou falso: só salário.
+   */
+  aplicarEmObrigacoes?: boolean;
 }
 
 export type IndiceCorrecao = "IPCA" | "INPC" | "IGPM";

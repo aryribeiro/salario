@@ -319,11 +319,16 @@ export function apurarCompetencia(
 
 /** Férias e décimo terceiro: mesmo motor, vencimento próprio de cada parcela. */
 export function apurarObrigacao(obrigacao: Obrigacao, parametros: Parametros): ObrigacaoApurada {
+  // A multa da norma coletiva só alcança férias e 13º se quem calcula disser
+  // que a cláusula da sua categoria vai até lá.
+  const multa = parametros.multa.aplicarEmObrigacoes
+    ? parametros.multa
+    : { ...parametros.multa, ativa: false };
   const nucleo = apurarNucleo(
     obrigacao.valorDevidoCentavos,
     obrigacao.vencimento,
     obrigacao.pagamentos,
-    parametros,
+    { ...parametros, multa },
   );
   return {
     id: obrigacao.id,

@@ -506,7 +506,11 @@ function secaoParametros(p: Pincel, apuracao: Apuracao) {
             : multa.tipo === "fixo"
               ? `valor fixo de ${formatarMoeda(multa.valor)} por competência em atraso`
               : `${multa.valor} salário-dia por dia de atraso`
-        }${multa.tetoPercentual ? `, limitada a ${formatarPercentual(multa.tetoPercentual)} do salário` : ""}. Origem: ${multa.clausula || "cláusula não informada"}.`
+        }${multa.tetoPercentual ? `, limitada a ${formatarPercentual(multa.tetoPercentual)} do salário` : ""}. Origem: ${multa.clausula || "cláusula não informada"}. ${
+          multa.aplicarEmObrigacoes
+            ? "Por decisão de quem calculou, a multa foi estendida também às férias e ao décimo terceiro."
+            : "A multa incide apenas sobre o salário mensal; férias e décimo terceiro ficaram fora dela."
+        }`
       : "Multa: não aplicada. A CLT não prevê multa automática em favor do empregado pelo atraso do salário mensal; quando devida, ela decorre de convenção ou acordo coletivo da categoria.",
     { tamanho: 8.8, espacoDepois: 4 },
   );
@@ -742,11 +746,14 @@ function secaoFalhas(p: Pincel, apuracao: Apuracao) {
     ]),
   );
 
-  if (atrasadas.length >= 3) {
+  // O Decreto-Lei 368/1968 fala em atraso de SALÁRIOS por três meses ou mais;
+  // férias e décimo terceiro não entram nessa contagem.
+  const salariosAtrasados = apuracao.competencias.filter((c) => c.emAtraso).length;
+  if (salariosAtrasados >= 3) {
     p.y -= 8;
     paragrafo(
       p,
-      "Registro de fato, sem juízo de valor: houve três ou mais parcelas pagas fora do prazo. O Decreto-Lei 368/1968 trata do atraso reiterado de salários e o art. 483, alínea d, da CLT trata do descumprimento de obrigações contratuais pelo empregador. O enquadramento de cada situação depende de análise profissional e não é feito por este documento.",
+      `Registro de fato, sem juízo de valor: ${salariosAtrasados} competências de salário foram pagas fora do prazo. O Decreto-Lei 368/1968 trata do atraso reiterado de salários por período igual ou superior a três meses, e o art. 483, alínea d, da CLT trata do descumprimento de obrigações contratuais pelo empregador. O enquadramento de cada situação depende de análise profissional e não é feito por este documento.`,
       { tamanho: 8.4, cor: TINTA.suave },
     );
   }

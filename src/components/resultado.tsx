@@ -306,7 +306,8 @@ export function Detalhamento({ apuracao }: { apuracao: Apuracao }) {
   const itens = [...apuracao.competencias, ...apuracao.obrigacoes];
   if (itens.length === 0 && apuracao.fgts.length === 0) return null;
 
-  const atrasadas = itens.filter((i) => i.emAtraso);
+  // O Decreto-Lei 368/1968 fala em atraso de salários; férias e 13º não contam aqui.
+  const salariosAtrasados = apuracao.competencias.filter((c) => c.emAtraso);
 
   return (
     <div className="space-y-4">
@@ -325,13 +326,13 @@ export function Detalhamento({ apuracao }: { apuracao: Apuracao }) {
           ))}
         </div>
 
-        {atrasadas.length >= 3 && (
+        {salariosAtrasados.length >= 3 && (
           <div className="mt-4">
-            <Aviso tom="atencao" titulo="Três ou mais parcelas fora do prazo">
+            <Aviso tom="atencao" titulo="Três ou mais salários fora do prazo">
               Este é um registro de fato, não uma conclusão jurídica. O Decreto-Lei 368/1968 trata do
-              atraso reiterado de salários e o art. 483, alínea d, da CLT trata do descumprimento de
-              obrigações do contrato pelo empregador. O enquadramento depende de análise
-              profissional.
+              atraso reiterado de salários por três meses ou mais, e o art. 483, alínea d, da CLT
+              trata do descumprimento de obrigações do contrato pelo empregador. O enquadramento
+              depende de análise profissional.
             </Aviso>
           </div>
         )}

@@ -171,6 +171,38 @@ describe("obrigações dentro da apuração geral", () => {
     expect(r.totalGeralCentavos).toBe(153_850);
   });
 
+  it("a multa da convenção não alcança férias e 13º sem a chave explícita", () => {
+    const ferias: Obrigacao = {
+      id: "f1",
+      tipo: "ferias",
+      rotulo: "Férias",
+      fundamento: "art. 145 da CLT",
+      vencimento: "2026-02-08",
+      valorDevidoCentavos: 400_000,
+      pagamentos: [{ id: "p1", data: "2026-02-28", valorCentavos: 400_000 }],
+    };
+    const comMulta: Parametros = {
+      ...parametros,
+      multa: {
+        ativa: true,
+        tipo: "percentual",
+        valor: 10,
+        base: "atraso",
+        clausula: "CCT 2026, cláusula 15",
+        tetoPercentual: null,
+      },
+    };
+    const soSalario = apurar([], comMulta, { obrigacoes: [ferias] });
+    expect(soSalario.obrigacoes[0]!.multaCentavos).toBe(0);
+
+    const estendida = apurar(
+      [],
+      { ...comMulta, multa: { ...comMulta.multa, aplicarEmObrigacoes: true } },
+      { obrigacoes: [ferias] },
+    );
+    expect(estendida.obrigacoes[0]!.multaCentavos).toBe(40_000);
+  });
+
   it("obrigação sem valor é descartada", () => {
     const vazia: Obrigacao = {
       id: "x",

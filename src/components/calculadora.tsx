@@ -1604,6 +1604,13 @@ function AbaCriterios({
               />
             </Grade>
 
+            <Interruptor
+              ligado={estado.multa.aplicarEmObrigacoes ?? false}
+              aoMudar={(v) => alterar({ multa: { ...estado.multa, aplicarEmObrigacoes: v } })}
+              titulo="Aplicar a mesma multa a férias e 13º salário"
+              descricao="Só ligue se a cláusula da sua convenção alcançar essas parcelas. A maioria fala apenas de salário. A escolha sai declarada no memorial."
+            />
+
             <div className="flex flex-wrap items-end gap-2 rounded-xl border border-borda bg-superficie-2/60 p-3">
               <CampoTexto
                 rotulo="Guardar esta cláusula para reutilizar"

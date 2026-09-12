@@ -132,6 +132,7 @@ export function estadoInicial(hoje: DataISO = hojeLocalISO()): Estado {
       base: "atraso",
       clausula: "",
       tetoPercentual: null,
+      aplicarEmObrigacoes: false,
     },
     correcao: { ativa: false, modo: "indice", indice: "IPCA", percentualManual: 0 },
     regiao: "sp-capital",
@@ -331,6 +332,7 @@ export function normalizarRascunho(bruto: unknown, hoje: DataISO = hojeLocalISO(
       base: umDe(mul.base, ["atraso", "salario"] as const, padrao.multa.base),
       clausula: texto(mul.clausula, ""),
       tetoPercentual: numeroOuNulo(mul.tetoPercentual, null),
+      aplicarEmObrigacoes: booleano(mul.aplicarEmObrigacoes, false),
     },
     correcao: {
       ativa: booleano(cor.ativa, padrao.correcao.ativa),
