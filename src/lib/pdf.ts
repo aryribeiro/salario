@@ -18,6 +18,7 @@ import {
   type PDFPage,
 } from "@cantoo/pdf-lib";
 
+import { convencaoPorId } from "./convencoes";
 import { formatarData, formatarCompetencia } from "./data";
 import { formatarDocumento } from "./documentos";
 import { formatarMoeda, formatarNumero, formatarPercentual } from "./dinheiro";
@@ -503,14 +504,20 @@ function secaoParametros(p: Pincel, apuracao: Apuracao) {
       ? `Multa: ${
           multa.tipo === "percentual"
             ? `${formatarPercentual(multa.valor)} sobre ${multa.base === "salario" ? "o salário da competência" : "o valor pago em atraso somado ao saldo em aberto"}`
-            : multa.tipo === "fixo"
-              ? `valor fixo de ${formatarMoeda(multa.valor)} por competência em atraso`
-              : `${multa.valor} salário-dia por dia de atraso`
-        }${multa.tetoPercentual ? `, limitada a ${formatarPercentual(multa.tetoPercentual)} do salário` : ""}. Origem: ${multa.clausula || "cláusula não informada"}. ${
+            : multa.tipo === "percentualDia"
+              ? `${formatarPercentual(multa.valor)} por dia de atraso sobre ${multa.base === "salario" ? "o salário da competência, pelo maior atraso do mês" : "cada valor pago em atraso, pelos dias de atraso dele, e sobre o saldo em aberto até a apuração"}`
+              : multa.tipo === "fixo"
+                ? `valor fixo de ${formatarMoeda(multa.valor)} por competência em atraso`
+                : `${multa.valor} salário-dia por dia de atraso`
+        }${
+          multa.tetoPercentual
+            ? `, limitada a ${formatarPercentual(multa.tetoPercentual)} ${multa.tipo === "percentualDia" && multa.base === "atraso" ? "do valor pago em atraso" : "do salário"}`
+            : ""
+        }. Origem: ${multa.clausula || "cláusula não informada"}. ${
           multa.aplicarEmObrigacoes
             ? "Por decisão de quem calculou, a multa foi estendida também às férias e ao décimo terceiro."
             : "A multa incide apenas sobre o salário mensal; férias e décimo terceiro ficaram fora dela."
-        }`
+        }${descreverVigencia(apuracao)}`
       : "Multa: não aplicada. A CLT não prevê multa automática em favor do empregado pelo atraso do salário mensal; quando devida, ela decorre de convenção ou acordo coletivo da categoria.",
     { tamanho: 8.8, espacoDepois: 4 },
   );
@@ -949,11 +956,62 @@ function secaoFundamentos(p: Pincel, apuracao: Apuracao) {
   }
 }
 
-function secaoAvisos(p: Pincel) {
+/** Frase sobre competências que a convenção escolhida não alcança. */
+function descreverVigencia(apuracao: Apuracao): string {
+  const { multa } = apuracao.parametros;
+  if (!multa.vigencia) return "";
+  const fora = [...apuracao.competencias, ...apuracao.obrigacoes]
+    .filter((c) => c.multaForaDaVigencia)
+    .map((c) => c.rotulo);
+  const vigencia = ` A norma vigora de ${formatarData(multa.vigencia.inicio)} a ${formatarData(multa.vigencia.fim)} e, sem ultratividade (art. 614, §3º, da CLT), não alcança parcela fora desse período.`;
+  if (fora.length === 0) return vigencia;
+  return `${vigencia} Sem multa por esse motivo: ${fora.join(", ")}.`;
+}
+
+/**
+ * Quando a cláusula veio de uma convenção verificada, o memorial imprime o
+ * que permite conferi-la: registro, partes, vigência, abrangência, o texto
+ * literal e a leitura adotada onde o texto é omisso.
+ */
+function secaoConvencao(p: Pincel, apuracao: Apuracao) {
+  const { multa } = apuracao.parametros;
+  if (!multa.ativa) return;
+  const convencao = convencaoPorId(multa.convencaoId);
+  if (!convencao) return;
+  garantirEspaco(p, 34);
+  p.y -= 12;
+  p.pagina.drawText(sanear("Convenção coletiva verificada"), {
+    x: MARGEM.esquerda,
+    y: p.y,
+    size: 8.4,
+    font: p.negrito,
+    color: TINTA.texto,
+  });
+  const linhas = [
+    `${convencao.nome}. Partes: ${convencao.partes}.`,
+    `Registro MTE ${convencao.registroMTE}, de ${formatarData(convencao.dataRegistro)}. Vigência de ${formatarData(convencao.vigenciaInicio)} a ${formatarData(convencao.vigenciaFim)}.`,
+    `Abrangência: ${convencao.abrangencia}`,
+    `A quem se aplica: ${convencao.enquadramento}`,
+    `${convencao.clausulaNumero}, texto literal: "${convencao.clausulaTexto}"`,
+    `Leitura adotada neste cálculo: ${convencao.interpretacao}`,
+    ...convencao.observacoes,
+    `Texto conferido em ${formatarData(convencao.conferidoEm)} no registro do Ministério do Trabalho e Emprego. Fontes: ${convencao.fontes.map((f) => `${f.titulo} (${f.url})`).join("; ")}.`,
+  ];
+  for (const linha of linhas) {
+    paragrafo(p, linha, { tamanho: 8.4, cor: TINTA.suave, entrelinha: 11, espacoDepois: 3 });
+  }
+}
+
+function secaoAvisos(p: Pincel, apuracao: Apuracao) {
   titulo(p, "6. Limites deste documento");
+  const { multa } = apuracao.parametros;
+  const convencao = multa.ativa ? convencaoPorId(multa.convencaoId) : undefined;
+  const alcance = convencao
+    ? `da convenção coletiva indicada considera apenas a cláusula de multa por atraso, conferida em ${formatarData(convencao.conferidoEm)}, e não as demais cláusulas; cabe a quem emite confirmar que a atividade principal da empresa está na abrangência dela. Também não considera`
+    : "não considera a convenção coletiva da categoria,";
   paragrafo(
     p,
-    "Este memorial foi gerado por ferramenta automatizada a partir dos dados informados por quem o emitiu. Não é laudo pericial nem parecer jurídico, não substitui a análise de profissional habilitado e não considera a convenção coletiva da categoria, acordos individuais, descontos, adiantamentos não informados ou decisões judiciais em curso.",
+    `Este memorial foi gerado por ferramenta automatizada a partir dos dados informados por quem o emitiu. Não é laudo pericial nem parecer jurídico, não substitui a análise de profissional habilitado e ${alcance} acordos individuais, descontos, adiantamentos não informados ou decisões judiciais em curso.`,
     { tamanho: 8.4, cor: TINTA.suave, espacoDepois: 4 },
   );
   paragrafo(
@@ -1099,7 +1157,8 @@ export async function gerarMemorial(apuracao: Apuracao): Promise<Uint8Array> {
 
   secaoTotais(p, apuracao);
   secaoFundamentos(p, apuracao);
-  secaoAvisos(p);
+  secaoConvencao(p, apuracao);
+  secaoAvisos(p, apuracao);
   rodapes(p);
 
   return doc.save();

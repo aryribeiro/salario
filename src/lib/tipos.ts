@@ -37,13 +37,14 @@ export interface ConfigJuros {
   fundamento: string;
 }
 
-export type TipoMulta = "percentual" | "fixo" | "salarioDia";
+export type TipoMulta = "percentual" | "percentualDia" | "fixo" | "salarioDia";
 
 export interface ConfigMulta {
   ativa: boolean;
   tipo: TipoMulta;
   /**
-   * percentual: alíquota em % | fixo: valor em centavos |
+   * percentual: alíquota em %, aplicada uma vez | percentualDia: alíquota em %
+   * por dia de atraso de cada parcela | fixo: valor em centavos |
    * salarioDia: quantos salários-dia por dia de atraso
    */
   valor: number;
@@ -51,8 +52,23 @@ export interface ConfigMulta {
   base: "atraso" | "salario";
   /** Cláusula da convenção ou acordo coletivo que institui a multa. */
   clausula: string;
-  /** Teto opcional, em percentual do salário da competência. */
+  /**
+   * Teto opcional, em percentual. Para "percentualDia" o teto incide sobre a
+   * mesma base da multa (é como as convenções escrevem: "2% ao dia, limitada a
+   * 20%"); nos demais formatos, sobre o valor devido da competência.
+   */
   tetoPercentual: number | null;
+  /**
+   * Presente quando a cláusula veio de uma convenção verificada do módulo
+   * `convencoes.ts`. O memorial imprime registro, vigência e abrangência.
+   */
+  convencaoId?: string;
+  /**
+   * Vigência da norma que institui a multa. Derivada da convenção verificada
+   * na hora do cálculo, não gravada no rascunho. Competência fora dela fica
+   * sem multa (art. 614, §3º, da CLT: a norma coletiva não tem ultratividade).
+   */
+  vigencia?: { inicio: DataISO; fim: DataISO };
   /**
    * Cláusulas de norma coletiva costumam punir o atraso do SALÁRIO. Estender a
    * multa a férias e décimo terceiro é escolha de quem calcula, declarada no
@@ -139,6 +155,8 @@ export interface CompetenciaApurada {
   salarioCentavos: Centavos;
   vencimento: DataISO;
   diasUteisContados: DataISO[];
+  /** A convenção escolhida não vigorava nesta competência: multa não aplicada. */
+  multaForaDaVigencia: boolean;
   pagamentos: PagamentoApurado[];
   totalPagoCentavos: Centavos;
   excedenteCentavos: Centavos;
@@ -186,6 +204,7 @@ export interface ObrigacaoApurada {
   observacao?: string;
   vencimento: DataISO;
   valorDevidoCentavos: Centavos;
+  multaForaDaVigencia: boolean;
   pagamentos: PagamentoApurado[];
   totalPagoCentavos: Centavos;
   excedenteCentavos: Centavos;

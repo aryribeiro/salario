@@ -80,11 +80,21 @@ mês e nenhuma multa. Nesta aba você pode mudar a data até onde os juros corre
 legal que varia mês a mês, ligar a multa da convenção coletiva da sua categoria, ligar a
 correção monetária e ajustar a região dos feriados, que vem em São Paulo capital.
 
-Na multa, o menu **Cláusula** traz os formatos que mais aparecem nas convenções, como um
-trinta avos do salário por dia de atraso ou um percentual sobre o valor pago fora do prazo.
-Escolha um formato, escreva de qual convenção ele vem e clique em **Salvar** com um nome: nas
-próximas apurações a cláusula volta pronta no mesmo menu. A multa alcança só o salário, a não
-ser que você ligue a chave que a estende a férias e 13º.
+Na multa, o menu **Cláusula** tem três partes. No topo ficam as **convenções verificadas**:
+convenções cujo texto registrado no Ministério do Trabalho foi lido e conferido, uma a uma. Ao
+escolher uma delas, tudo se preenche sozinho (identificação, forma de cálculo, percentual e
+teto) e um quadro mostra quem assinou, o número do registro, a vigência, para quem ela vale, o
+texto literal da cláusula e o que o cálculo assume onde o texto é omisso. Hoje há uma: a
+convenção de 2026/2027 das empresas de tecnologia da informação e processamento de dados de São
+Paulo (SINDPD-SP e SEPROSP), cuja cláusula sexta prevê multa de 2% ao dia, limitada a 20%.
+Atenção ao quadro "Vale para quem": a convenção certa é a da **atividade principal da empresa**,
+não a do cargo. Um programador contratado por um banco segue a convenção dos bancários.
+
+Depois vêm os **formatos comuns**, como um trinta avos do salário por dia de atraso ou um
+percentual sobre o valor pago fora do prazo, para quem tem outra convenção em mãos. Escolha
+um formato, escreva de qual convenção ele vem e clique em **Salvar** com um nome: nas próximas
+apurações a cláusula volta pronta no mesmo menu, no grupo **Minhas cláusulas salvas**. A multa
+alcança só o salário, a não ser que você ligue a chave que a estende a férias e 13º.
 
 ### Dicas que economizam tempo
 
@@ -121,9 +131,20 @@ ser que você ligue a chave que a estende a férias e 13º.
   piso em zero. No segundo caso cada mês entra com a sua própria taxa, buscada no Banco
   Central, proporcional aos dias em que a dívida existiu naquele mês. Com a correção ligada,
   os juros incidem sobre o valor já corrigido, como manda a Súmula 200 do TST.
+- **Multa da convenção, quatro formatos.** Percentual aplicado uma vez, percentual por dia de
+  atraso (cada parcela paga fora do prazo rende os próprios dias, e o saldo em aberto rende até
+  a apuração), salários-dia por dia de atraso e valor fixo por competência, todos com teto
+  opcional.
+- **Convenções verificadas.** Uma biblioteca, dentro do código, de convenções cujo texto
+  registrado no Mediador foi lido: registro no MTE, partes, vigência, abrangência, cláusula
+  literal, leitura adotada onde a cláusula é omissa, data da conferência e fontes. A vigência é
+  conferida mês a mês: competência fora dela fica sem multa, com aviso na tela e no memorial
+  (art. 614, §3º, da CLT: norma coletiva não tem ultratividade). Qualquer edição manual desfaz o
+  vínculo, para o memorial nunca citar registro de um texto alterado.
 - **Memorial em PDF.** Documento paginado com identificação, critérios, apuração parcela a
   parcela, resumo financeiro, fundamentação e os limites do próprio documento. Quando os juros
-  vêm da taxa legal, o memorial imprime a taxa aplicada em cada mês.
+  vêm da taxa legal, o memorial imprime a taxa aplicada em cada mês. Com convenção verificada,
+  imprime também o registro, a vigência, a abrangência e o texto literal da cláusula.
 
 ## O que ele deliberadamente não faz
 
@@ -175,6 +196,8 @@ Toda regra do motor de cálculo nasce de uma destas fontes. Os endereços foram 
 | Taxa legal passa a ser a Selic deduzido o IPCA, desde 30/08/2024 | [Lei 14.905/2024](https://www.planalto.gov.br/ccivil_03/_ato2023-2026/2024/lei/l14905.htm) |
 | Atraso reiterado de salários | [Decreto-Lei 368/1968](https://www.planalto.gov.br/ccivil_03/decreto-lei/del0368.htm) |
 | Depósito de 8% do FGTS e encargos do recolhimento em atraso (arts. 15 e 22) | [Lei 8.036/1990](https://www.planalto.gov.br/ccivil_03/leis/l8036consol.htm) |
+| Enquadramento sindical pela atividade da empresa (arts. 511 e 611) e fim da ultratividade da norma coletiva (art. 614, §3º) | [CLT](https://www.planalto.gov.br/ccivil_03/decreto-lei/del5452.htm) e [ADPF 323, STF](https://portal.stf.jus.br/) |
+| Convenção coletiva 2026/2027 das empresas de TI e processamento de dados de São Paulo, registro MTE SP002635/2026: cláusula sexta (multa de 2% ao dia, limitada a 20%), cláusula quinta (complemento até o 5º dia útil) e cláusula segunda (abrangência). Texto conferido em 12/09/2026. | [Mediador, MTE](http://www3.mte.gov.br/sistemas/mediador/), [SINDPD-SP](https://www.sindpd.org.br/) e [SEPROSP](https://www.seprosp.org.br/) |
 | Prazo do dia 20 e cálculo dos encargos na prática | [FGTS Digital, Ministério do Trabalho e Emprego](https://www.gov.br/trabalho-e-emprego/pt-br/servicos/empregador/fgtsdigital) |
 
 ### Jurisprudência
@@ -196,6 +219,7 @@ acesso automatizado, o que impede verificar o endereço de cada notícia.
 | Tabela mensal do imposto de renda, dedução por dependente e desconto simplificado | [Receita Federal, tributação de 2026](https://www.gov.br/receitafederal/pt-br/assuntos/meu-imposto-de-renda/tabelas/2026) |
 | Redutor que zera o imposto até R$ 5.000,00 e decresce até R$ 7.350,00 | [Lei 15.270/2025](https://www.planalto.gov.br/ccivil_03/_ato2023-2026/2025/lei/l15270.htm) e [exemplos oficiais de aplicação](https://www.gov.br/receitafederal/pt-br/assuntos/meu-imposto-de-renda/tabelas/exemplos-de-aplicacao-da-lei-15-270-2025) |
 | Faixas do INSS e teto do salário de contribuição | [Portaria Interministerial MPS/MF 13/2026](https://www.gov.br/previdencia/pt-br/assuntos/rpps/destaques/publicada-a-portaria-interministerial-mps-mf-no-13-de-9-01-2026-que-dispoe-sobre-o-reajuste-dos-beneficios-pagos-pelo-inss-e-demais-valores) |
+| Desconto do INSS calculado faixa a faixa, com o valor de cada faixa truncado na segunda casa decimal antes da soma (conferido contra contracheque real de 2026: salário de R$ 5.200,00 desconta R$ 529,50) | [Manual de Orientação do eSocial](https://www.gov.br/esocial/pt-br/documentacao-tecnica) |
 | Salário mínimo de R$ 1.621,00 | [Decreto 12.797/2025](https://www.planalto.gov.br/ccivil_03/_ato2023-2026/2025/decreto/d12797.htm) |
 | Rendimentos recebidos acumuladamente | [Lei 7.713/1988, art. 12-A](https://www.planalto.gov.br/ccivil_03/leis/l7713.htm) |
 | CNPJ alfanumérico, emitido desde 31 de julho de 2026, e o dígito verificador por módulo 11 sobre o valor ASCII menos 48 | [Receita Federal, CNPJ Alfanumérico](https://www.gov.br/receitafederal/pt-br/acesso-a-informacao/acoes-e-programas/programas-e-atividades/cnpj-alfanumerico) e [cálculo dos dígitos, Serpro](https://www.serpro.gov.br/menu/noticias/videos/calculodvcnpjalfanaumerico.pdf) |
@@ -237,7 +261,7 @@ fora, e o memorial declara isso.
 ```bash
 npm install
 npm run dev        # http://localhost:3000
-npm test           # 97 testes: motor, tributos, parcelas, documentos, rascunho e PDF
+npm test           # 111 testes: motor, tributos, parcelas, documentos, convenções, rascunho e PDF
 npm run typecheck
 npm run build
 ```
@@ -256,6 +280,7 @@ src/lib/         motor de cálculo puro, sem React
   tributos.ts    tabelas de INSS e imposto de renda de 2026
   documentos.ts  CNPJ numérico e alfanumérico, e CPF
   clausulas.ts   formatos de multa que se repetem nas convenções
+  convencoes.ts  convenções verificadas: registro, vigência, cláusula literal, fontes
   rascunho.ts    o que fica salvo no navegador, versionado e normalizado
   pdf.ts         memorial de cálculo
 src/components/  interface

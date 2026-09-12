@@ -34,6 +34,13 @@ export const MODELOS_DE_CLAUSULA: ModeloDeClausula[] = [
     formato: { tipo: "salarioDia", valor: 1, base: "atraso", tetoPercentual: 100 },
   },
   {
+    id: "pct-dia-teto",
+    nome: "2% por dia de atraso, limitado a 20%",
+    descricao:
+      "Percentual por dia sobre cada valor pago fora do prazo, com teto sobre o mesmo valor. Formato da CCT de TI de São Paulo.",
+    formato: { tipo: "percentualDia", valor: 2, base: "atraso", tetoPercentual: 20 },
+  },
+  {
     id: "pct-2-atraso",
     nome: "2% sobre o valor pago com atraso",
     descricao: "Percentual fixo, aplicado uma vez sobre o que foi pago fora do prazo.",

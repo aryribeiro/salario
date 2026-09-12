@@ -67,6 +67,32 @@ describe("rascunho gravado por versão antiga", () => {
     expect(estado.fgts[0]!.recolhimento).toBe("");
   });
 
+  it("guarda a convenção verificada só enquanto ela existir no módulo", () => {
+    const base = JSON.parse(JSON.stringify(estadoInicial(HOJE)));
+    const comConvencao = normalizarRascunho(
+      {
+        ...base,
+        multa: {
+          ...base.multa,
+          ativa: true,
+          tipo: "percentualDia",
+          valor: 2,
+          tetoPercentual: 20,
+          convencaoId: "sindpd-seprosp-2026-2027",
+        },
+      },
+      HOJE,
+    )!;
+    expect(comConvencao.multa.tipo).toBe("percentualDia");
+    expect(comConvencao.multa.convencaoId).toBe("sindpd-seprosp-2026-2027");
+
+    const removida = normalizarRascunho(
+      { ...base, multa: { ...base.multa, convencaoId: "cct-que-saiu-do-app" } },
+      HOJE,
+    )!;
+    expect(removida.multa.convencaoId).toBeUndefined();
+  });
+
   it("devolve null para o que não é objeto", () => {
     expect(normalizarRascunho(null, HOJE)).toBeNull();
     expect(normalizarRascunho("texto", HOJE)).toBeNull();

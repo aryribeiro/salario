@@ -6,6 +6,7 @@ import {
   chaveMes,
   chaveMesDaData,
   ehDataISO,
+  formatarCompetencia,
   formatarData,
   hojeLocalISO,
   intervaloDeMeses,
@@ -16,6 +17,13 @@ import {
 } from "@/lib/data";
 import { formatarMoeda } from "@/lib/dinheiro";
 import { MODELOS_DE_CLAUSULA, mesmoFormato, modeloPorId } from "@/lib/clausulas";
+import {
+  CONVENCOES_VERIFICADAS,
+  convencaoPorId,
+  convencaoVencida,
+  mesesForaDaVigencia,
+  type ConvencaoVerificada,
+} from "@/lib/convencoes";
 import { formatarDocumento, limparDocumento, problemaNoDocumento } from "@/lib/documentos";
 import { apurarFGTS, type EncargoFGTS } from "@/lib/fgts";
 import { apurar, mesesNecessarios } from "@/lib/motor";
@@ -440,12 +448,30 @@ export function Calculadora() {
   }, [estado.fgtsAtivo, estado.fgts, dataApuracao, feriadosNoCalculo]);
 
   const multaSemClausula = estado.multa.ativa && estado.multa.clausula.trim().length === 0;
+  const convencaoDaMulta = estado.multa.ativa ? convencaoPorId(estado.multa.convencaoId) : undefined;
+  // Meses do cálculo que a convenção escolhida não alcança. Só salário, a não
+  // ser que a multa tenha sido estendida a férias e 13º.
+  const mesesForaDaConvencao = useMemo(() => {
+    if (!convencaoDaMulta) return [];
+    const meses = competencias.map((c) => chaveMes(c.ano, c.mes));
+    if (estado.multa.aplicarEmObrigacoes) {
+      obrigacoes.forEach((o) => meses.push(chaveMesDaData(o.vencimento)));
+    }
+    return mesesForaDaVigencia(convencaoDaMulta, meses);
+  }, [convencaoDaMulta, competencias, obrigacoes, estado.multa.aplicarEmObrigacoes]);
 
   const parametros = useMemo<Parametros>(
     () => ({
       dataApuracao,
       juros: { ...estado.juros, serie: serieJuros },
-      multa: multaSemClausula ? { ...estado.multa, ativa: false } : estado.multa,
+      multa: multaSemClausula
+        ? { ...estado.multa, ativa: false }
+        : convencaoDaMulta
+          ? {
+              ...estado.multa,
+              vigencia: { inicio: convencaoDaMulta.vigenciaInicio, fim: convencaoDaMulta.vigenciaFim },
+            }
+          : estado.multa,
       correcao: { ...estado.correcao, serie },
       calendario: {
         regiao: estado.regiao,
@@ -456,7 +482,7 @@ export function Calculadora() {
       },
       identificacao: estado.identificacao,
     }),
-    [estado, dataApuracao, feriadosNoCalculo, serie, serieJuros, multaSemClausula],
+    [estado, dataApuracao, feriadosNoCalculo, serie, serieJuros, multaSemClausula, convencaoDaMulta],
   );
 
   const apuracao = useMemo(
@@ -605,6 +631,12 @@ export function Calculadora() {
       tom: "atencao",
       texto:
         "A multa está ligada mas sem cláusula informada, então não entrou no cálculo. Escreva de qual convenção ou acordo coletivo ela vem.",
+    });
+  }
+  if (convencaoDaMulta && mesesForaDaConvencao.length > 0) {
+    avisos.push({
+      tom: "alerta",
+      texto: `A convenção escolhida para a multa (${convencaoDaMulta.registroMTE}) vigora de ${formatarData(convencaoDaMulta.vigenciaInicio)} a ${formatarData(convencaoDaMulta.vigenciaFim)}. ${mesesForaDaConvencao.map(rotuloDaChave).join(", ")} ${mesesForaDaConvencao.length === 1 ? "ficou" : "ficaram"} fora dela e não ${mesesForaDaConvencao.length === 1 ? "recebeu" : "receberam"} multa. Para esses meses vale a convenção anterior, que precisa ser informada à mão.`,
     });
   }
   if (apuracao.pagamentosAposApuracao > 0) {
@@ -801,6 +833,7 @@ export function Calculadora() {
               mensagemIndice={mensagemIndice}
               statusJuros={statusJuros}
               mensagemJuros={mensagemJuros}
+              mesesForaDaConvencao={mesesForaDaConvencao}
             />
           )}
           </div>
@@ -1383,6 +1416,95 @@ function AbaFgts({
 
 /* ---------------------------------------------------------- aba: critérios */
 
+/**
+ * O que o usuário precisa ler antes de aplicar uma convenção verificada:
+ * quem assinou, registro, vigência, a quem se aplica, o texto literal e o que
+ * o cálculo assume onde o texto é omisso. Tudo isso sai também no memorial.
+ */
+function QuadroDaConvencao({
+  convencao,
+  vencida,
+  mesesFora,
+}: {
+  convencao: ConvencaoVerificada;
+  vencida: boolean;
+  mesesFora: string[];
+}) {
+  return (
+    <div className="space-y-2">
+      {vencida && (
+        <Aviso tom="alerta" titulo="Convenção vencida">
+          A vigência terminou em {formatarData(convencao.vigenciaFim)}. Norma coletiva não vale
+          depois do prazo (art. 614, §3º, da CLT). Procure a convenção seguinte no site do
+          sindicato e informe a cláusula à mão.
+        </Aviso>
+      )}
+      {mesesFora.length > 0 && (
+        <Aviso tom="alerta" titulo="Competência fora da vigência">
+          {mesesFora.map(rotuloDaChave).join(", ")}: a convenção não vigorava e a multa não foi
+          aplicada nesses meses. Vale a convenção anterior, que precisa ser informada à mão.
+        </Aviso>
+      )}
+      <Aviso tom="neutro" titulo={convencao.nome}>
+        <dl className="space-y-1.5">
+          <div>
+            <dt className="font-semibold text-texto">Vale para quem</dt>
+            <dd>{convencao.enquadramento}</dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-texto">Registro e vigência</dt>
+            <dd>
+              Registro MTE {convencao.registroMTE}, de {formatarData(convencao.dataRegistro)}.
+              Vigência de {formatarData(convencao.vigenciaInicio)} a{" "}
+              {formatarData(convencao.vigenciaFim)}. Partes: {convencao.partes}.
+            </dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-texto">{convencao.clausulaNumero}, texto literal</dt>
+            <dd className="italic">&ldquo;{convencao.clausulaTexto}&rdquo;</dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-texto">O que este cálculo assume</dt>
+            <dd>{convencao.interpretacao}</dd>
+          </div>
+          {convencao.observacoes.map((o) => (
+            <div key={o}>
+              <dd>{o}</dd>
+            </div>
+          ))}
+          <div>
+            <dt className="font-semibold text-texto">Conferência</dt>
+            <dd>
+              Texto conferido em {formatarData(convencao.conferidoEm)} no registro do MTE.
+              Fontes:{" "}
+              {convencao.fontes.map((f, i) => (
+                <span key={f.url}>
+                  {i > 0 && "; "}
+                  <a
+                    href={f.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-marca underline decoration-marca/40 underline-offset-2"
+                  >
+                    {f.titulo}
+                  </a>
+                </span>
+              ))}
+              . Se editar qualquer campo abaixo, o vínculo com a convenção é desfeito e o
+              memorial deixa de citar o registro.
+            </dd>
+          </div>
+        </dl>
+      </Aviso>
+    </div>
+  );
+}
+
+/** "2026-04" vira "abril de 2026". */
+function rotuloDaChave(chave: string): string {
+  return formatarCompetencia(Number(chave.slice(0, 4)), Number(chave.slice(5, 7)));
+}
+
 function AbaCriterios({
   estado,
   alterar,
@@ -1390,6 +1512,7 @@ function AbaCriterios({
   mensagemIndice,
   statusJuros,
   mensagemJuros,
+  mesesForaDaConvencao,
 }: {
   estado: Estado;
   alterar: (mudanca: Partial<Estado>) => void;
@@ -1397,6 +1520,7 @@ function AbaCriterios({
   mensagemIndice: string;
   statusJuros: "ocioso" | "carregando" | "pronto" | "erro";
   mensagemJuros: string;
+  mesesForaDaConvencao: string[];
 }) {
   const [nomeParaSalvar, setNomeParaSalvar] = useState("");
   const salvas = estado.clausulasSalvas;
@@ -1406,6 +1530,13 @@ function AbaCriterios({
     base: estado.multa.base,
     tetoPercentual: estado.multa.tetoPercentual,
   };
+  // A convenção verificada só continua "escolhida" enquanto formato e
+  // identificação forem os dela: qualquer edição à mão vira cláusula própria.
+  const convencaoAtual = convencaoPorId(estado.multa.convencaoId);
+  const convencaoConfere =
+    convencaoAtual !== undefined &&
+    mesmoFormato(convencaoAtual.formato, formatoAtual) &&
+    estado.multa.clausula === convencaoAtual.identificacao;
   const salvaAtual = salvas.find(
     (c) => mesmoFormato(c, formatoAtual) && c.clausula === estado.multa.clausula,
   );
@@ -1414,37 +1545,63 @@ function AbaCriterios({
   const modeloAtual = MODELOS_DE_CLAUSULA.find((m) =>
     m.formato.tipo === "fixo" ? formatoAtual.tipo === "fixo" : mesmoFormato(m.formato, formatoAtual),
   );
-  const selecaoDeClausula = salvaAtual
-    ? `salva:${salvaAtual.id}`
-    : modeloAtual
-      ? `modelo:${modeloAtual.id}`
-      : "personalizado";
-  const descricaoDaSelecao = salvaAtual
-    ? `Cláusula salva: ${salvaAtual.clausula}`
-    : (modeloAtual?.descricao ?? "Os campos abaixo definem como a multa é calculada.");
+  const selecaoDeClausula = convencaoConfere
+    ? `convencao:${convencaoAtual.id}`
+    : salvaAtual
+      ? `salva:${salvaAtual.id}`
+      : modeloAtual
+        ? `modelo:${modeloAtual.id}`
+        : "personalizado";
+  const descricaoDaSelecao = convencaoConfere
+    ? `Texto conferido no Mediador em ${formatarData(convencaoAtual.conferidoEm)}. Leia o quadro abaixo antes de usar.`
+    : salvaAtual
+      ? `Cláusula salva: ${salvaAtual.clausula}`
+      : (modeloAtual?.descricao ?? "Os campos abaixo definem como a multa é calculada.");
+  const hoje = hojeLocalISO();
+
+  // Toda edição manual dos campos da multa desfaz o vínculo com a convenção
+  // verificada, para o memorial nunca citar registro de um texto alterado.
+  const mudarMulta = (mudanca: Partial<Estado["multa"]>) => {
+    const { convencaoId: _descartado, ...semVinculo } = estado.multa;
+    void _descartado;
+    alterar({ multa: { ...semVinculo, ...mudanca } });
+  };
 
   const aplicarSelecaoDeClausula = (escolha: string) => {
+    if (escolha.startsWith("convencao:")) {
+      const convencao = convencaoPorId(escolha.slice("convencao:".length));
+      if (convencao) {
+        alterar({
+          multa: {
+            ...estado.multa,
+            ...convencao.formato,
+            clausula: convencao.identificacao,
+            convencaoId: convencao.id,
+          },
+        });
+      }
+      return;
+    }
     if (escolha.startsWith("modelo:")) {
       const modelo = modeloPorId(escolha.slice("modelo:".length));
-      if (modelo) alterar({ multa: { ...estado.multa, ...modelo.formato } });
+      if (modelo) mudarMulta(modelo.formato);
       return;
     }
     if (escolha.startsWith("salva:")) {
       const salva = salvas.find((c) => c.id === escolha.slice("salva:".length));
       if (salva) {
-        alterar({
-          multa: {
-            ...estado.multa,
-            tipo: salva.tipo,
-            valor: salva.valor,
-            base: salva.base,
-            tetoPercentual: salva.tetoPercentual,
-            clausula: salva.clausula,
-          },
+        mudarMulta({
+          tipo: salva.tipo,
+          valor: salva.valor,
+          base: salva.base,
+          tetoPercentual: salva.tetoPercentual,
+          clausula: salva.clausula,
         });
       }
+      return;
     }
-    // "personalizado": nada a mudar; os campos continuam editáveis.
+    // "personalizado": solta o vínculo com a convenção e deixa editar.
+    if (convencaoConfere) mudarMulta({});
   };
 
   const salvarClausula = () => {
@@ -1579,6 +1736,13 @@ function AbaCriterios({
                     { valor: "personalizado", rotulo: "Personalizada: configuro os campos abaixo" },
                   ],
                 },
+                {
+                  rotulo: "Convenções verificadas (texto conferido no registro do MTE)",
+                  opcoes: CONVENCOES_VERIFICADAS.map((c) => ({
+                    valor: `convencao:${c.id}`,
+                    rotulo: convencaoVencida(c, hoje) ? `${c.nome}, vencida` : c.nome,
+                  })),
+                },
                 ...(salvas.length > 0
                   ? [
                       {
@@ -1597,10 +1761,17 @@ function AbaCriterios({
               ]}
               ajuda={descricaoDaSelecao}
             />
+            {convencaoConfere && (
+              <QuadroDaConvencao
+                convencao={convencaoAtual}
+                vencida={convencaoVencida(convencaoAtual, hoje)}
+                mesesFora={mesesForaDaConvencao}
+              />
+            )}
             <CampoTexto
               rotulo="Convenção ou acordo que institui a multa"
               valor={estado.multa.clausula}
-              aoMudar={(v) => alterar({ multa: { ...estado.multa, clausula: v } })}
+              aoMudar={(v) => mudarMulta({ clausula: v })}
               placeholder="ex.: CCT 2026/2027 dos comerciários de São Paulo, cláusula 15ª"
               ajuda="sai no memorial como origem da multa"
               erro={
@@ -1613,9 +1784,10 @@ function AbaCriterios({
               <Selecao
                 rotulo="Como a multa é calculada"
                 valor={estado.multa.tipo}
-                aoMudar={(v) => alterar({ multa: { ...estado.multa, tipo: v } })}
+                aoMudar={(v) => mudarMulta({ tipo: v })}
                 opcoes={[
-                  { valor: "percentual", rotulo: "Percentual sobre o valor" },
+                  { valor: "percentual", rotulo: "Percentual sobre o valor, uma vez" },
+                  { valor: "percentualDia", rotulo: "Percentual por dia de atraso" },
                   { valor: "salarioDia", rotulo: "Salários-dia por dia de atraso" },
                   { valor: "fixo", rotulo: "Valor fixo por competência" },
                 ]}
@@ -1623,7 +1795,7 @@ function AbaCriterios({
               <Selecao
                 rotulo="Incide sobre"
                 valor={estado.multa.base}
-                aoMudar={(v) => alterar({ multa: { ...estado.multa, base: v } })}
+                aoMudar={(v) => mudarMulta({ base: v })}
                 opcoes={[
                   { valor: "atraso", rotulo: "O valor pago em atraso e o saldo" },
                   { valor: "salario", rotulo: "O valor devido da competência" },
@@ -1635,23 +1807,31 @@ function AbaCriterios({
                 <CampoMoeda
                   rotulo="Valor da multa"
                   centavos={estado.multa.valor}
-                  aoMudar={(v) => alterar({ multa: { ...estado.multa, valor: v ?? 0 } })}
+                  aoMudar={(v) => mudarMulta({ valor: v ?? 0 })}
                 />
               ) : (
                 <CampoNumero
-                  rotulo={estado.multa.tipo === "percentual" ? "Percentual" : "Salários-dia por dia"}
+                  rotulo={
+                    estado.multa.tipo === "percentual"
+                      ? "Percentual"
+                      : estado.multa.tipo === "percentualDia"
+                        ? "Percentual por dia de atraso"
+                        : "Salários-dia por dia"
+                  }
                   valor={estado.multa.valor}
-                  aoMudar={(v) => alterar({ multa: { ...estado.multa, valor: v } })}
-                  sufixo={estado.multa.tipo === "percentual" ? "%" : "x"}
-                  passo={estado.multa.tipo === "percentual" ? 0.5 : 0.1}
+                  aoMudar={(v) => mudarMulta({ valor: v })}
+                  sufixo={estado.multa.tipo === "salarioDia" ? "x" : "%"}
+                  passo={estado.multa.tipo === "salarioDia" ? 0.1 : 0.5}
                 />
               )}
               <CampoNumero
-                rotulo="Teto, em percentual do valor devido"
-                valor={estado.multa.tetoPercentual ?? 0}
-                aoMudar={(v) =>
-                  alterar({ multa: { ...estado.multa, tetoPercentual: v > 0 ? v : null } })
+                rotulo={
+                  estado.multa.tipo === "percentualDia" && estado.multa.base === "atraso"
+                    ? "Teto, em percentual do valor pago em atraso"
+                    : "Teto, em percentual do valor devido"
                 }
+                valor={estado.multa.tetoPercentual ?? 0}
+                aoMudar={(v) => mudarMulta({ tetoPercentual: v > 0 ? v : null })}
                 sufixo="%"
                 passo={5}
                 ajuda="zero significa sem teto"
@@ -1695,11 +1875,13 @@ function AbaCriterios({
           <NotaLegal titulo="Por que o menu não traz todas as convenções">
             São milhares de convenções e acordos coletivos no país, renovados todo ano, um para
             cada categoria e região. Uma cláusula errada num documento que serve de evidência é
-            pior do que nenhuma. Por isso o menu traz os formatos que se repetem nas convenções,
-            que preenchem o cálculo, e a identificação da sua convenção continua sendo digitada
-            uma única vez: salve-a com um nome e ela volta pronta nas próximas apurações. A
-            convenção da sua categoria está registrada no sistema Mediador, do Ministério do
-            Trabalho e Emprego, e costuma estar no site do sindicato.
+            pior do que nenhuma. Por isso o menu traz só as convenções cujo texto registrado foi
+            lido e conferido, uma a uma, com a data da conferência, e os formatos que se repetem
+            nas demais, que preenchem o cálculo enquanto a identificação da sua convenção é
+            digitada uma única vez: salve-a com um nome e ela volta pronta nas próximas
+            apurações. A convenção da sua categoria está registrada no sistema Mediador, do
+            Ministério do Trabalho e Emprego, e costuma estar no site do sindicato. Quem manda na
+            convenção é a atividade principal da empresa, não o cargo do trabalhador.
           </NotaLegal>
           <NotaLegal titulo="O que a lei prevê e o que não prevê">
             A CLT não cria multa automática em favor do empregado pelo atraso do salário mensal. A

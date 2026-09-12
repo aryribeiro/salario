@@ -20,6 +20,7 @@ import {
   proximoMes,
   type DataISO,
 } from "./data";
+import { convencaoPorId } from "./convencoes";
 import type { Regiao } from "./regiao";
 import type { Parametros } from "./tipos";
 
@@ -333,12 +334,21 @@ export function normalizarRascunho(bruto: unknown, hoje: DataISO = hojeLocalISO(
     },
     multa: {
       ativa: booleano(mul.ativa, padrao.multa.ativa),
-      tipo: umDe(mul.tipo, ["percentual", "fixo", "salarioDia"] as const, padrao.multa.tipo),
+      tipo: umDe(
+        mul.tipo,
+        ["percentual", "percentualDia", "fixo", "salarioDia"] as const,
+        padrao.multa.tipo,
+      ),
       valor: numero(mul.valor, padrao.multa.valor),
       base: umDe(mul.base, ["atraso", "salario"] as const, padrao.multa.base),
       clausula: texto(mul.clausula, ""),
       tetoPercentual: numeroOuNulo(mul.tetoPercentual, null),
       aplicarEmObrigacoes: booleano(mul.aplicarEmObrigacoes, false),
+      // Só sobrevive se a convenção ainda existir no módulo; uma entrada
+      // removida numa versão futura não pode ressuscitar pelo rascunho.
+      ...(typeof mul.convencaoId === "string" && convencaoPorId(mul.convencaoId)
+        ? { convencaoId: mul.convencaoId }
+        : {}),
     },
     correcao: {
       ativa: booleano(cor.ativa, padrao.correcao.ativa),

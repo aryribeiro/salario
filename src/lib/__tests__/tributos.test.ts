@@ -16,15 +16,28 @@ import {
  */
 
 describe("INSS 2026", () => {
-  it("aplica a alíquota de cada faixa só sobre a parcela da faixa", () => {
-    expect(inss2026(162_100)).toBe(12_158);
-    expect(inss2026(300_000)).toBe(24_860);
+  it("aplica a alíquota de cada faixa só sobre a parcela da faixa, truncando cada faixa", () => {
+    // 1.621,00 x 7,5% = 121,575 -> 121,57 (eSocial trunca, não arredonda)
+    expect(inss2026(162_100)).toBe(12_157);
+    // 121,57 + 115,36 + 11,65
+    expect(inss2026(300_000)).toBe(24_858);
   });
 
-  it("meio centavo exato arredonda para cima, como manda a regra", () => {
-    // Auditoria de 12/09: 2.902,96 dava 236,95 em ponto flutuante.
-    // Exato: 12.157,5 + 11.536,56 + 1,44 = 23.695,5 -> 236,96.
-    expect(inss2026(290_296)).toBe(23_696);
+  it("confere com um contracheque real de abril de 2026", () => {
+    // Salário de R$ 5.200,00 em empresa de TI de São Paulo: INSS de R$ 529,50.
+    // 121,57 + 115,36 + 174,17 + 118,40
+    expect(inss2026(520_000)).toBe(52_950);
+  });
+
+  it("o imposto de renda do mesmo contracheque, com um dependente, é R$ 46,44", () => {
+    const r = estimarLiquido(520_000, 1);
+    expect(r.inssCentavos).toBe(52_950);
+    // base legal 5.200,00 - 529,50 - 189,59 = 4.480,91; simplificada seria 4.592,80
+    expect(r.usouDescontoSimplificado).toBe(false);
+    expect(r.baseIrrfCentavos).toBe(448_091);
+    // 4.480,91 x 22,5% - 675,49 = 332,71; redutor 978,62 - 0,133145 x 5.200 = 286,27
+    expect(r.irrfCentavos).toBe(4_644);
+    expect(r.liquidoCentavos).toBe(462_406);
   });
 
   it("o redutor também escapa do ponto flutuante", () => {
@@ -33,8 +46,9 @@ describe("INSS 2026", () => {
   });
 
   it("trava no teto do salário de contribuição", () => {
-    expect(inss2026(TETO_INSS_2026)).toBe(98_809);
-    expect(inss2026(1_500_000)).toBe(98_809);
+    // 121,57 + 115,36 + 174,17 + 576,97
+    expect(inss2026(TETO_INSS_2026)).toBe(98_807);
+    expect(inss2026(1_500_000)).toBe(98_807);
   });
 
   it("não cobra nada de base zero", () => {
@@ -58,7 +72,10 @@ describe("IRRF 2026", () => {
 
   it("zera o imposto de quem ganha R$ 4.000,00, como no exemplo oficial", () => {
     const r = estimarLiquido(400_000);
-    expect(r.inssCentavos).toBe(36_860);
+    // O exemplo da Receita ilustra o INSS com 368,60; pela regra do eSocial,
+    // truncando cada faixa, dá 368,58. O desconto simplificado vence de todo
+    // jeito e o imposto zera nos dois casos.
+    expect(r.inssCentavos).toBe(36_858);
     expect(r.usouDescontoSimplificado).toBe(true);
     expect(r.baseIrrfCentavos).toBe(339_280);
     expect(r.irrfPelaTabelaCentavos).toBe(11_476);

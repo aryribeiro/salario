@@ -251,6 +251,19 @@ function apurarNucleo(
     const base = multa.base === "salario" ? valorDevidoCentavos : valorEmAtraso;
     if (multa.tipo === "percentual") {
       multaCentavos = arredondar(base * (multa.valor / 100));
+    } else if (multa.tipo === "percentualDia") {
+      // Percentual por dia de atraso. Sobre o valor em atraso, cada parcela
+      // carrega os próprios dias (a paga com 5 dias de atraso rende 5 dias, a
+      // paga com 20 rende 20, o saldo em aberto rende até a apuracao). Sobre
+      // o salário inteiro, conta o maior atraso da competência.
+      const diaria = multa.valor / 100;
+      multaCentavos =
+        multa.base === "salario"
+          ? arredondar(valorDevidoCentavos * diaria * maiorAtrasoDias)
+          : arredondar(
+              somar(pagamentos.map((p) => p.valorAplicadoCentavos * diaria * p.diasAtraso)) +
+                saldoEmMora * diaria * diasAtrasoSaldo,
+            );
     } else if (multa.tipo === "fixo") {
       multaCentavos = arredondar(multa.valor);
     } else {
@@ -258,7 +271,10 @@ function apurarNucleo(
       multaCentavos = arredondar(salarioDia * multa.valor * maiorAtrasoDias);
     }
     if (multa.tetoPercentual != null && multa.tetoPercentual > 0) {
-      const teto = arredondar(valorDevidoCentavos * (multa.tetoPercentual / 100));
+      // "2% ao dia, limitada a 20%": o teto do percentual diário incide sobre
+      // a mesma base da multa. Nos outros formatos, sobre o valor devido.
+      const baseDoTeto = multa.tipo === "percentualDia" ? base : valorDevidoCentavos;
+      const teto = arredondar(baseDoTeto * (multa.tetoPercentual / 100));
       multaCentavos = Math.min(multaCentavos, teto);
     }
     multaCentavos = Math.max(0, multaCentavos);
@@ -299,11 +315,12 @@ export function apurarCompetencia(
     sabadoEhUtil: calendario.sabadoEhUtil,
     locais: calendario.locais,
   });
+  const multaForaDaVigencia = foraDaVigencia(parametros.multa, chaveMes(competencia.ano, competencia.mes));
   const nucleo = apurarNucleo(
     competencia.salarioCentavos,
     vencimento,
     competencia.pagamentos,
-    parametros,
+    multaForaDaVigencia ? { ...parametros, multa: { ...parametros.multa, ativa: false } } : parametros,
   );
   return {
     id: competencia.id,
@@ -313,17 +330,31 @@ export function apurarCompetencia(
     salarioCentavos: competencia.salarioCentavos,
     vencimento,
     diasUteisContados: contagem.map((d) => d.data),
+    multaForaDaVigencia,
     ...nucleo,
   };
+}
+
+/**
+ * Norma coletiva não tem ultratividade (art. 614, §3º, da CLT): a multa de uma
+ * convenção só alcança competência dentro da vigência dela.
+ */
+function foraDaVigencia(multa: Parametros["multa"], mes: string): boolean {
+  if (!multa.ativa || !multa.vigencia) return false;
+  return mes < multa.vigencia.inicio.slice(0, 7) || mes > multa.vigencia.fim.slice(0, 7);
 }
 
 /** Férias e décimo terceiro: mesmo motor, vencimento próprio de cada parcela. */
 export function apurarObrigacao(obrigacao: Obrigacao, parametros: Parametros): ObrigacaoApurada {
   // A multa da norma coletiva só alcança férias e 13º se quem calcula disser
   // que a cláusula da sua categoria vai até lá.
-  const multa = parametros.multa.aplicarEmObrigacoes
-    ? parametros.multa
-    : { ...parametros.multa, ativa: false };
+  const multaForaDaVigencia =
+    (parametros.multa.aplicarEmObrigacoes ?? false) &&
+    foraDaVigencia(parametros.multa, chaveMesDaData(obrigacao.vencimento));
+  const multa =
+    parametros.multa.aplicarEmObrigacoes && !multaForaDaVigencia
+      ? parametros.multa
+      : { ...parametros.multa, ativa: false };
   const nucleo = apurarNucleo(
     obrigacao.valorDevidoCentavos,
     obrigacao.vencimento,
@@ -338,6 +369,7 @@ export function apurarObrigacao(obrigacao: Obrigacao, parametros: Parametros): O
     observacao: obrigacao.observacao,
     vencimento: obrigacao.vencimento,
     valorDevidoCentavos: obrigacao.valorDevidoCentavos,
+    multaForaDaVigencia,
     ...nucleo,
   };
 }

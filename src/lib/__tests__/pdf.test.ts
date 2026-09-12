@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { inflateSync } from "node:zlib";
 
 import { PDFDocument } from "@cantoo/pdf-lib";
 import { describe, expect, it } from "vitest";
@@ -101,6 +102,34 @@ const obrigacoes: Obrigacao[] = [
   },
 ];
 
+/**
+ * Junta o texto desenhado nas páginas: infla cada fluxo de conteúdo e decodifica
+ * as cadeias hexadecimais que o pdf-lib usa com as fontes padrão (WinAnsi).
+ */
+function textoDoPdf(bytes: Uint8Array): string {
+  const bruto = Buffer.from(bytes);
+  const texto: string[] = [];
+  let posicao = 0;
+  for (;;) {
+    const inicio = bruto.indexOf("stream\n", posicao, "latin1");
+    if (inicio === -1) break;
+    const fim = bruto.indexOf("endstream", inicio, "latin1");
+    if (fim === -1) break;
+    const corpo = bruto.subarray(inicio + "stream\n".length, fim);
+    let fluxo = "";
+    try {
+      fluxo = inflateSync(corpo).toString("latin1");
+    } catch {
+      fluxo = corpo.toString("latin1");
+    }
+    for (const trecho of fluxo.matchAll(/<([0-9A-Fa-f]+)>\s*Tj/g)) {
+      texto.push(Buffer.from(trecho[1]!, "hex").toString("latin1"));
+    }
+    posicao = fim + "endstream".length;
+  }
+  return texto.join("\n");
+}
+
 describe("memorial em PDF", () => {
   it("saneia sem apagar acento e marca o que não cabe na fonte", () => {
     expect(sanear("José Antônio à ação")).toBe("José Antônio à ação");
@@ -152,6 +181,33 @@ describe("memorial em PDF", () => {
     }
     // Um link para o aplicativo e outro para o repositório, por página.
     expect(links).toBe(paginas.length * 2);
+  });
+
+  it("com convenção verificada, imprime registro, vigência e texto literal da cláusula", async () => {
+    const comConvencao: Parametros = {
+      ...parametros,
+      multa: {
+        ativa: true,
+        tipo: "percentualDia",
+        valor: 2,
+        base: "atraso",
+        tetoPercentual: 20,
+        clausula: "CCT 2026/2027 SINDPD-SP x SEPROSP, registro MTE SP002635/2026, cláusula sexta",
+        convencaoId: "sindpd-seprosp-2026-2027",
+        vigencia: { inicio: "2026-01-01", fim: "2027-12-31" },
+      },
+    };
+    const apuracao = apurar(competencias, comConvencao);
+    const bytes = await gerarMemorial(apuracao);
+    const relido = await PDFDocument.load(bytes);
+    expect(relido.getPageCount()).toBeGreaterThanOrEqual(2);
+    const conteudo = textoDoPdf(bytes);
+    expect(conteudo).toContain("SP002635/2026");
+    // As linhas quebram onde couber; procura-se trecho curto de cada bloco.
+    expect(conteudo).toContain("vinte por cento");
+    expect(conteudo).toContain("Convenção coletiva verificada");
+    expect(conteudo).toContain("614");
+    expect(apuracao.competencias.every((c) => !c.multaForaDaVigencia)).toBe(true);
   });
 
   it("monta um nome de arquivo seguro a partir do nome do empregado", () => {

@@ -277,6 +277,116 @@ describe("apuração de uma competência", () => {
     expect(r.multaCentavos).toBe(60_000);
   });
 
+  describe("multa de percentual por dia (CCT de TI de São Paulo: 2% ao dia, teto de 20%)", () => {
+    // Caso real de 2026: salário de R$ 5.200,00 da competência abril, numa
+    // empresa de TI de São Paulo. Em maio de 2026, 1º é feriado (sexta), 2 é
+    // sábado e conta, 3 é domingo: o 5º dia útil cai em 7 de maio (quinta).
+    const parametrosTI: Parametros = {
+      ...parametrosBase,
+      dataApuracao: "2026-06-30",
+      multa: {
+        ativa: true,
+        tipo: "percentualDia",
+        valor: 2,
+        base: "atraso",
+        clausula: "CCT 2026/2027 SINDPD-SP x SEPROSP, cláusula sexta",
+        tetoPercentual: 20,
+      },
+    };
+    const abril = (pagamentos: Competencia["pagamentos"]) =>
+      competencia({ ano: 2026, mes: 4, salarioCentavos: 520_000, pagamentos });
+
+    it("cobra 2% por dia de atraso sobre o valor pago fora do prazo", () => {
+      const r = apurarCompetencia(
+        abril([{ id: "p1", data: "2026-05-12", valorCentavos: 520_000 }]),
+        parametrosTI,
+      );
+      expect(r.vencimento).toBe("2026-05-07");
+      expect(r.maiorAtrasoDias).toBe(5);
+      // 5.200,00 x 2% x 5 dias = 520,00
+      expect(r.multaCentavos).toBe(52_000);
+    });
+
+    it("trava no teto de 20% do valor pago em atraso", () => {
+      const r = apurarCompetencia(
+        abril([{ id: "p1", data: "2026-05-27", valorCentavos: 520_000 }]),
+        parametrosTI,
+      );
+      // 20 dias x 2% = 40%, limitado a 20% de 5.200,00 = 1.040,00
+      expect(r.maiorAtrasoDias).toBe(20);
+      expect(r.multaCentavos).toBe(104_000);
+    });
+
+    it("cada parcela paga com atraso carrega os próprios dias", () => {
+      const r = apurarCompetencia(
+        abril([
+          { id: "p1", data: "2026-05-12", valorCentavos: 260_000 },
+          { id: "p2", data: "2026-05-14", valorCentavos: 260_000 },
+        ]),
+        parametrosTI,
+      );
+      // 2.600 x 2% x 5 = 260,00; 2.600 x 2% x 7 = 364,00; soma 624,00 < teto 1.040,00
+      expect(r.multaCentavos).toBe(62_400);
+    });
+
+    it("o saldo em aberto conta os dias até a apuração e o teto segura a soma", () => {
+      const r = apurarCompetencia(
+        abril([{ id: "p1", data: "2026-05-12", valorCentavos: 260_000 }]),
+        { ...parametrosTI, dataApuracao: "2026-05-17" },
+      );
+      // 2.600 x 2% x 5 = 260,00; saldo 2.600 x 2% x 10 = 520,00; soma 780,00 < 1.040,00
+      expect(r.diasAtrasoSaldo).toBe(10);
+      expect(r.multaCentavos).toBe(78_000);
+      const tarde = apurarCompetencia(
+        abril([{ id: "p1", data: "2026-05-12", valorCentavos: 260_000 }]),
+        { ...parametrosTI, dataApuracao: "2026-06-30" },
+      );
+      // saldo com 54 dias estouraria; teto = 20% de 5.200,00
+      expect(tarde.multaCentavos).toBe(104_000);
+    });
+
+    it("sobre o salário inteiro, usa o maior atraso da competência", () => {
+      const r = apurarCompetencia(
+        abril([{ id: "p1", data: "2026-05-12", valorCentavos: 520_000 }]),
+        { ...parametrosTI, multa: { ...parametrosTI.multa, base: "salario", tetoPercentual: null } },
+      );
+      expect(r.multaCentavos).toBe(52_000);
+    });
+
+    it("competência fora da vigência da convenção fica sem multa, e diz isso", () => {
+      const comVigencia: Parametros = {
+        ...parametrosTI,
+        multa: { ...parametrosTI.multa, vigencia: { inicio: "2026-01-01", fim: "2027-12-31" } },
+      };
+      const dentro = apurarCompetencia(
+        abril([{ id: "p1", data: "2026-05-12", valorCentavos: 520_000 }]),
+        comVigencia,
+      );
+      expect(dentro.multaForaDaVigencia).toBe(false);
+      expect(dentro.multaCentavos).toBe(52_000);
+      const fora = apurarCompetencia(
+        competencia({
+          ano: 2025,
+          mes: 12,
+          salarioCentavos: 520_000,
+          pagamentos: [{ id: "p1", data: "2026-01-20", valorCentavos: 520_000 }],
+        }),
+        comVigencia,
+      );
+      expect(fora.multaForaDaVigencia).toBe(true);
+      expect(fora.multaCentavos).toBe(0);
+      expect(fora.jurosCentavos).toBeGreaterThan(0);
+    });
+
+    it("pago no prazo, não há multa", () => {
+      const r = apurarCompetencia(
+        abril([{ id: "p1", data: "2026-05-07", valorCentavos: 520_000 }]),
+        parametrosTI,
+      );
+      expect(r.multaCentavos).toBe(0);
+    });
+  });
+
   it("multa desligada não entra na conta", () => {
     const r = apurarCompetencia(
       competencia({

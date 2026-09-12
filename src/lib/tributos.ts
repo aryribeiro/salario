@@ -43,19 +43,27 @@ const FAIXAS_IRRF: { ate: Centavos; milesimos: number; deduzir: Centavos }[] = [
   { ate: Number.POSITIVE_INFINITY, milesimos: 275, deduzir: 90_873 },
 ];
 
-/** Contribuição previdenciária do empregado sobre a remuneração do mês. */
+/**
+ * Contribuição previdenciária do empregado sobre a remuneração do mês.
+ *
+ * Regra do Manual de Orientação do eSocial: o valor de CADA FAIXA é truncado
+ * na segunda casa decimal, sem arredondar, e só depois somado. Foi conferido
+ * contra um contracheque real de 2026: salário de R$ 5.200,00 desconta R$
+ * 529,50, que é o que o truncamento por faixa dá; o arredondamento do total
+ * daria R$ 529,51.
+ */
 export function inss2026(remuneracao: Centavos): Centavos {
   if (!Number.isFinite(remuneracao)) return 0;
   const base = Math.min(Math.max(0, Math.round(remuneracao)), TETO_INSS_2026);
   let anterior = 0;
-  let totalEmMilesimos = 0;
+  let total = 0;
   for (const faixa of FAIXAS_INSS) {
     if (base <= anterior) break;
     const parcela = Math.min(base, faixa.ate) - anterior;
-    totalEmMilesimos += parcela * faixa.milesimos;
+    total += Math.floor((parcela * faixa.milesimos) / 1000);
     anterior = faixa.ate;
   }
-  return arredondar(totalEmMilesimos / 1000);
+  return total;
 }
 
 /** Imposto pela tabela, antes do redutor da Lei 15.270/2025. */
