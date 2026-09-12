@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import {
   chaveMes,
   chaveMesDaData,
+  ehDataISO,
   formatarData,
   hojeLocalISO,
   intervaloDeMeses,
@@ -13,6 +14,7 @@ import {
   type DataISO,
 } from "@/lib/data";
 import { formatarMoeda } from "@/lib/dinheiro";
+import { MODELOS_DE_CLAUSULA, mesmoFormato, modeloPorId } from "@/lib/clausulas";
 import { formatarDocumento, limparDocumento, problemaNoDocumento } from "@/lib/documentos";
 import { apurarFGTS, type EncargoFGTS } from "@/lib/fgts";
 import { apurar, mesesNecessarios } from "@/lib/motor";
@@ -22,7 +24,24 @@ import {
   vencimentoDecimoSegunda,
   vencimentoFerias,
 } from "@/lib/parcelas";
-import { feriadosDaRegiao, REGIOES, type Regiao } from "@/lib/regiao";
+import {
+  CHAVE_RASCUNHO,
+  CHAVE_RASCUNHO_ANTIGA,
+  estadoInicial,
+  exemplo,
+  lerRascunhoDoNavegador,
+  mesAnterior,
+  normalizarRascunho,
+  novoId,
+  type ClausulaSalva,
+  type Estado,
+  type ItemDecimo,
+  type ItemFerias,
+  type ItemFgts,
+  type ItemSalario,
+  type LinhaPagamento,
+} from "@/lib/rascunho";
+import { feriadosDaRegiao, REGIOES } from "@/lib/regiao";
 import { estimarLiquido, SALARIO_MINIMO_2026 } from "@/lib/tributos";
 import type { Competencia, Obrigacao, Parametros } from "@/lib/tipos";
 
@@ -39,179 +58,8 @@ import {
   Interruptor,
   NotaLegal,
   Selecao,
+  SelecaoAgrupada,
 } from "./ui";
-
-/* ------------------------------------------------------------------ estado */
-
-interface LinhaPagamento {
-  id: string;
-  data: DataISO;
-  valor: number | null;
-}
-
-interface ItemSalario {
-  id: string;
-  mes: string; // "2026-01"
-  valor: number | null;
-  pagamentos: LinhaPagamento[];
-}
-
-interface ItemFerias {
-  id: string;
-  descricao: string;
-  inicio: DataISO;
-  modo: "calcular" | "informar";
-  salarioBase: number | null;
-  dias: number;
-  diasVendidos: number;
-  valorInformado: number | null;
-  foraDoPeriodoConcessivo: boolean;
-  pagamentos: LinhaPagamento[];
-}
-
-interface ItemDecimo {
-  id: string;
-  ano: number;
-  primeira: number | null;
-  pagamentosPrimeira: LinhaPagamento[];
-  segunda: number | null;
-  pagamentosSegunda: LinhaPagamento[];
-}
-
-interface ItemFgts {
-  id: string;
-  mes: string;
-  remuneracao: number | null;
-  recolhimento: DataISO | "";
-  aprendiz: boolean;
-}
-
-interface Estado {
-  dataApuracao: DataISO;
-  identificacao: Parametros["identificacao"];
-  juros: Parametros["juros"];
-  multa: Parametros["multa"];
-  correcao: Omit<Parametros["correcao"], "serie">;
-  regiao: Regiao;
-  bancarios: boolean;
-  sabadoEhUtil: boolean;
-  feriadosLocais: { data: DataISO; nome?: string }[];
-  salarios: ItemSalario[];
-  ferias: ItemFerias[];
-  decimos: ItemDecimo[];
-  fgtsAtivo: boolean;
-  fgts: ItemFgts[];
-}
-
-const CHAVE_ARMAZENAMENTO = "salarium-debitum:v1";
-
-function novoId(): string {
-  try {
-    return crypto.randomUUID();
-  } catch {
-    return `id-${Math.random().toString(36).slice(2)}-${Date.now()}`;
-  }
-}
-
-function mesAnterior(data: DataISO): string {
-  const [ano, mes] = data.slice(0, 7).split("-").map(Number);
-  return mes === 1 ? chaveMes(ano - 1, 12) : chaveMes(ano, mes - 1);
-}
-
-function estadoInicial(): Estado {
-  const hoje = hojeLocalISO();
-  return {
-    dataApuracao: hoje,
-    identificacao: {
-      empresa: "",
-      cnpj: "",
-      empregado: "",
-      cargo: "",
-      responsavel: "",
-      baseSalarial: "liquido",
-      observacoes: "",
-    },
-    juros: {
-      ativo: true,
-      modo: "fixa",
-      taxaMesPct: 1,
-      serie: {},
-      fundamento: "art. 39 da Lei 8.177/1991",
-    },
-    multa: {
-      ativa: false,
-      tipo: "percentual",
-      valor: 10,
-      base: "atraso",
-      clausula: "",
-      tetoPercentual: null,
-    },
-    correcao: { ativa: false, modo: "indice", indice: "IPCA", percentualManual: 0 },
-    regiao: "sp-capital",
-    bancarios: true,
-    sabadoEhUtil: true,
-    feriadosLocais: [],
-    salarios: [{ id: novoId(), mes: mesAnterior(hoje), valor: null, pagamentos: [] }],
-    ferias: [],
-    decimos: [],
-    fgtsAtivo: false,
-    fgts: [],
-  };
-}
-
-/**
- * Cenário de demonstração, completo de propósito: identificação preenchida e
- * dois meses que mostram o que a ferramenta tem de diferente, um pago em duas
- * vezes e outro com saldo em aberto. Quem clica em "Ver exemplo" precisa
- * conseguir baixar o memorial sem preencher mais nada.
- */
-function exemplo(): Estado {
-  const base = estadoInicial();
-  const hoje = base.dataApuracao;
-  const [ano, mes] = mesAnterior(hoje).split("-").map(Number);
-  const anterior = mes === 1 ? chaveMes(ano - 1, 12) : chaveMes(ano, mes - 1);
-
-  /** Mês em que o salário daquela competência deveria ter sido pago. */
-  const mesDoPagamento = (competencia: string) => {
-    const [a, m] = competencia.split("-").map(Number);
-    const seguinte = proximoMes(a!, m!);
-    return chaveMes(seguinte.ano, seguinte.mes);
-  };
-
-  return {
-    ...base,
-    identificacao: {
-      ...base.identificacao,
-      empresa: "Comércio Exemplo Ltda.",
-      cnpj: "11.222.333/0001-81",
-      empregado: "Maria de Souza",
-      cargo: "Auxiliar administrativa",
-      responsavel: "Gerência de pessoas",
-      observacoes: "Cenário de demonstração, com dados fictícios.",
-    },
-    salarios: [
-      {
-        id: novoId(),
-        mes: anterior,
-        valor: 320_000,
-        pagamentos: [
-          // Metade na data prevista e o restante duas semanas depois.
-          { id: novoId(), data: `${mesDoPagamento(anterior)}-05`, valor: 160_000 },
-          { id: novoId(), data: `${mesDoPagamento(anterior)}-19`, valor: 160_000 },
-        ],
-      },
-      {
-        id: novoId(),
-        mes: mesAnterior(hoje),
-        valor: 320_000,
-        pagamentos: [
-          // Pagamento parcial: o que sobrou segue em aberto e rendendo juros.
-          { id: novoId(), data: `${mesDoPagamento(mesAnterior(hoje))}-12`, valor: 180_000 },
-        ],
-      },
-    ],
-  };
-}
 
 /* --------------------------------------------------------------- auxiliares */
 
@@ -242,7 +90,7 @@ function remuneracaoDasFerias(item: ItemFerias): number {
 
 function pagamentosValidos(linhas: LinhaPagamento[]) {
   return linhas
-    .filter((p) => p.data && (p.valor ?? 0) > 0)
+    .filter((p) => ehDataISO(p.data) && (p.valor ?? 0) > 0)
     .map((p) => ({ id: p.id, data: p.data, valorCentavos: p.valor as number }));
 }
 
@@ -433,25 +281,19 @@ export function Calculadora() {
   /* ---------------------------------------------------------- persistência */
 
   useEffect(() => {
-    try {
-      const bruto = localStorage.getItem(CHAVE_ARMAZENAMENTO);
-      if (bruto) {
-        const salvo = JSON.parse(bruto) as Estado;
-        if (salvo && Array.isArray(salvo.salarios)) {
-          // Recuperar o que a pessoa digitou antes só é possível depois da
-          // montagem: no servidor não existe localStorage, e ler no
-          // inicializador do estado quebraria a hidratação.
-          // eslint-disable-next-line react-hooks/set-state-in-effect
-          setEstado({ ...estadoInicial(), ...salvo });
-          if (salvo.identificacao?.empregado?.trim() && salvo.identificacao?.cargo?.trim()) {
-            // Quem já identificou o trabalhador não precisa passar por essa
-            // aba de novo: volta direto para onde o trabalho acontece.
-            setAba("salario");
-          }
-        }
+    // Recuperar o que a pessoa digitou antes só é possível depois da
+    // montagem: no servidor não existe localStorage, e ler no inicializador do
+    // estado quebraria a hidratação. Tudo que vem do armazenamento passa pelo
+    // normalizador, que repõe campos criados depois da gravação.
+    const salvo = lerRascunhoDoNavegador();
+    if (salvo) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setEstado(salvo);
+      if (salvo.identificacao.empregado.trim() && salvo.identificacao.cargo.trim()) {
+        // Quem já identificou o trabalhador não precisa passar por essa aba
+        // de novo: volta direto para onde o trabalho acontece.
+        setAba("salario");
       }
-    } catch {
-      /* sem armazenamento, começa do zero */
     }
     setCarregado(true);
   }, []);
@@ -464,7 +306,7 @@ export function Calculadora() {
       try {
         const conteudo = JSON.stringify(estado);
         ultimoConteudo.current = conteudo;
-        localStorage.setItem(CHAVE_ARMAZENAMENTO, conteudo);
+        localStorage.setItem(CHAVE_RASCUNHO, conteudo);
       } catch {
         /* cota cheia ou navegador anônimo: seguir sem salvar */
       }
@@ -479,20 +321,20 @@ export function Calculadora() {
    */
   useEffect(() => {
     const aoMudarNoNavegador = (evento: StorageEvent) => {
-      if (evento.key !== CHAVE_ARMAZENAMENTO || !evento.newValue) return;
+      if (evento.key !== CHAVE_RASCUNHO || !evento.newValue) return;
       if (evento.newValue === ultimoConteudo.current) return;
-      let recebido: Estado;
+      let recebido: Estado | null = null;
       try {
-        recebido = JSON.parse(evento.newValue) as Estado;
+        recebido = normalizarRascunho(JSON.parse(evento.newValue));
       } catch {
         return;
       }
-      if (!recebido || !Array.isArray(recebido.salarios)) return;
+      if (!recebido) return;
 
       if (!editadoAqui.current) {
         // Nada a perder nesta aba: adota a versão mais recente sem incomodar.
         ultimoConteudo.current = evento.newValue;
-        setEstado({ ...estadoInicial(), ...recebido });
+        setEstado(recebido);
         return;
       }
       setConflito({ estado: recebido, conteudo: evento.newValue });
@@ -502,6 +344,12 @@ export function Calculadora() {
   }, []);
 
   /* -------------------------------------------------------------- derivação */
+
+  /**
+   * O campo de data do navegador entrega "" quando é apagado. Uma data vazia
+   * chegando ao motor viraria NaN no total; aqui ela é substituída por hoje.
+   */
+  const dataApuracao = ehDataISO(estado.dataApuracao) ? estado.dataApuracao : hojeLocalISO();
 
   const competencias = useMemo<Competencia[]>(
     () =>
@@ -523,7 +371,7 @@ export function Calculadora() {
   const obrigacoes = useMemo<Obrigacao[]>(() => {
     const lista: Obrigacao[] = [];
     for (const f of estado.ferias) {
-      if (!f.inicio) continue;
+      if (!ehDataISO(f.inicio)) continue;
       const valor = remuneracaoDasFerias(f);
       if (valor <= 0) continue;
       lista.push({
@@ -573,20 +421,20 @@ export function Calculadora() {
       .map((f) => {
         const [ano, mes] = f.mes.split("-").map(Number);
         return apurarFGTS(ano!, mes!, f.remuneracao as number, {
-          dataApuracao: estado.dataApuracao,
-          dataRecolhimento: f.recolhimento || undefined,
+          dataApuracao,
+          dataRecolhimento: ehDataISO(f.recolhimento) ? f.recolhimento : undefined,
           aprendiz: f.aprendiz,
           feriadosLocais: estado.feriadosLocais,
         });
       });
-  }, [estado.fgtsAtivo, estado.fgts, estado.dataApuracao, estado.feriadosLocais]);
+  }, [estado.fgtsAtivo, estado.fgts, dataApuracao, estado.feriadosLocais]);
 
   const multaSemClausula = estado.multa.ativa && estado.multa.clausula.trim().length === 0;
 
   const parametros = useMemo<Parametros>(() => {
     const regionais = feriadosDaRegiao(estado.regiao, anosEnvolvidos(estado));
     return {
-      dataApuracao: estado.dataApuracao,
+      dataApuracao,
       juros: { ...estado.juros, serie: serieJuros },
       multa: multaSemClausula ? { ...estado.multa, ativa: false } : estado.multa,
       correcao: { ...estado.correcao, serie },
@@ -599,7 +447,7 @@ export function Calculadora() {
       },
       identificacao: estado.identificacao,
     };
-  }, [estado, serie, serieJuros, multaSemClausula]);
+  }, [estado, dataApuracao, serie, serieJuros, multaSemClausula]);
 
   const apuracao = useMemo(
     () => apurar(competencias, parametros, { obrigacoes, fgts: fgtsApurado }),
@@ -609,12 +457,12 @@ export function Calculadora() {
   /* ------------------------------------------------------------- índices */
 
   const mesesDoCalculo = useMemo(() => {
-    const doSalario = mesesNecessarios(competencias, estado.dataApuracao);
+    const doSalario = mesesNecessarios(competencias, dataApuracao);
     const dasObrigacoes = obrigacoes.flatMap((o) =>
-      intervaloDeMeses(chaveMesDaData(o.vencimento), chaveMesDaData(estado.dataApuracao)),
+      intervaloDeMeses(chaveMesDaData(o.vencimento), chaveMesDaData(dataApuracao)),
     );
     return [...new Set([...doSalario, ...dasObrigacoes])].sort();
-  }, [competencias, obrigacoes, estado.dataApuracao]);
+  }, [competencias, obrigacoes, dataApuracao]);
 
   /**
    * Busca uma série no Banco Central. A chamada só parte meio segundo depois da
@@ -780,7 +628,8 @@ export function Calculadora() {
             tamanho="pequeno"
             aoClicar={() => {
               editadoAqui.current = true;
-              setEstado(exemplo());
+              // As cláusulas salvas são biblioteca da pessoa, não parte do cálculo.
+              setEstado({ ...exemplo(), clausulasSalvas: estado.clausulasSalvas });
               setAba("salario");
             }}
           >
@@ -794,10 +643,12 @@ export function Calculadora() {
                 editadoAqui.current = false;
                 ultimoConteudo.current = "";
                 setConflito(null);
-                setEstado(estadoInicial());
+                // Limpar apaga o cálculo, não a biblioteca de cláusulas salvas.
+                setEstado({ ...estadoInicial(), clausulasSalvas: estado.clausulasSalvas });
                 setAba("identificacao");
                 try {
-                  localStorage.removeItem(CHAVE_ARMAZENAMENTO);
+                  localStorage.removeItem(CHAVE_RASCUNHO);
+                  localStorage.removeItem(CHAVE_RASCUNHO_ANTIGA);
                 } catch {
                   /* nada a limpar */
                 }
@@ -856,7 +707,7 @@ export function Calculadora() {
                   tamanho="pequeno"
                   aoClicar={() => {
                     ultimoConteudo.current = conflito.conteudo;
-                    setEstado({ ...estadoInicial(), ...conflito.estado });
+                    setEstado(conflito.estado);
                     setConflito(null);
                   }}
                 >
@@ -868,7 +719,7 @@ export function Calculadora() {
                     try {
                       const conteudo = JSON.stringify(estado);
                       ultimoConteudo.current = conteudo;
-                      localStorage.setItem(CHAVE_ARMAZENAMENTO, conteudo);
+                      localStorage.setItem(CHAVE_RASCUNHO, conteudo);
                     } catch {
                       /* sem armazenamento: o que está na tela continua valendo */
                     }
@@ -1482,6 +1333,74 @@ function AbaCriterios({
   statusJuros: "ocioso" | "carregando" | "pronto" | "erro";
   mensagemJuros: string;
 }) {
+  const [nomeParaSalvar, setNomeParaSalvar] = useState("");
+  const salvas = estado.clausulasSalvas;
+  const formatoAtual = {
+    tipo: estado.multa.tipo,
+    valor: estado.multa.valor,
+    base: estado.multa.base,
+    tetoPercentual: estado.multa.tetoPercentual,
+  };
+  const salvaAtual = salvas.find(
+    (c) => mesmoFormato(c, formatoAtual) && c.clausula === estado.multa.clausula,
+  );
+  // No formato "valor fixo" o valor é da pessoa; o modelo continua selecionado
+  // enquanto ela digita o montante.
+  const modeloAtual = MODELOS_DE_CLAUSULA.find((m) =>
+    m.formato.tipo === "fixo" ? formatoAtual.tipo === "fixo" : mesmoFormato(m.formato, formatoAtual),
+  );
+  const selecaoDeClausula = salvaAtual
+    ? `salva:${salvaAtual.id}`
+    : modeloAtual
+      ? `modelo:${modeloAtual.id}`
+      : "personalizado";
+  const descricaoDaSelecao = salvaAtual
+    ? `Cláusula salva: ${salvaAtual.clausula}`
+    : (modeloAtual?.descricao ?? "Os campos abaixo definem como a multa é calculada.");
+
+  const aplicarSelecaoDeClausula = (escolha: string) => {
+    if (escolha.startsWith("modelo:")) {
+      const modelo = modeloPorId(escolha.slice("modelo:".length));
+      if (modelo) alterar({ multa: { ...estado.multa, ...modelo.formato } });
+      return;
+    }
+    if (escolha.startsWith("salva:")) {
+      const salva = salvas.find((c) => c.id === escolha.slice("salva:".length));
+      if (salva) {
+        alterar({
+          multa: {
+            ...estado.multa,
+            tipo: salva.tipo,
+            valor: salva.valor,
+            base: salva.base,
+            tetoPercentual: salva.tetoPercentual,
+            clausula: salva.clausula,
+          },
+        });
+      }
+    }
+    // "personalizado": nada a mudar; os campos continuam editáveis.
+  };
+
+  const salvarClausula = () => {
+    const nome = nomeParaSalvar.trim();
+    if (!nome || !estado.multa.clausula.trim()) return;
+    const nova: ClausulaSalva = {
+      id: novoId(),
+      nome,
+      ...formatoAtual,
+      clausula: estado.multa.clausula.trim(),
+    };
+    // Salvar de novo com o mesmo nome substitui a anterior.
+    alterar({ clausulasSalvas: [...salvas.filter((c) => c.nome !== nome), nova] });
+    setNomeParaSalvar("");
+  };
+
+  const excluirSalva = () => {
+    if (!salvaAtual) return;
+    alterar({ clausulasSalvas: salvas.filter((c) => c.id !== salvaAtual.id) });
+  };
+
   return (
     <div className="space-y-4">
       <Cartao titulo="Data da apuração" descricao="Os juros correm até esta data.">
@@ -1490,7 +1409,10 @@ function AbaCriterios({
             rotulo="Calcular até"
             tipo="date"
             valor={estado.dataApuracao}
-            aoMudar={(v) => alterar({ dataApuracao: v })}
+            // Apagar o campo não pode deixar o cálculo sem data: a última
+            // data válida permanece até outra ser escolhida.
+            aoMudar={(v) => ehDataISO(v) && alterar({ dataApuracao: v })}
+            ajuda="os juros e a correção correm até este dia"
           />
         </Grade>
       </Cartao>
@@ -1581,14 +1503,44 @@ function AbaCriterios({
         />
         {estado.multa.ativa && (
           <div className="mt-4 space-y-4">
+            <SelecaoAgrupada
+              rotulo="Cláusula"
+              valor={selecaoDeClausula}
+              aoMudar={aplicarSelecaoDeClausula}
+              grupos={[
+                {
+                  rotulo: "",
+                  opcoes: [
+                    { valor: "personalizado", rotulo: "Personalizada: configuro os campos abaixo" },
+                  ],
+                },
+                ...(salvas.length > 0
+                  ? [
+                      {
+                        rotulo: "Minhas cláusulas salvas",
+                        opcoes: salvas.map((c) => ({ valor: `salva:${c.id}`, rotulo: c.nome })),
+                      },
+                    ]
+                  : []),
+                {
+                  rotulo: "Formatos comuns em convenções coletivas",
+                  opcoes: MODELOS_DE_CLAUSULA.map((m) => ({
+                    valor: `modelo:${m.id}`,
+                    rotulo: m.nome,
+                  })),
+                },
+              ]}
+              ajuda={descricaoDaSelecao}
+            />
             <CampoTexto
-              rotulo="Cláusula que institui a multa"
+              rotulo="Convenção ou acordo que institui a multa"
               valor={estado.multa.clausula}
               aoMudar={(v) => alterar({ multa: { ...estado.multa, clausula: v } })}
-              placeholder="ex.: CCT 2026/2027, cláusula 15ª, parágrafo único"
+              placeholder="ex.: CCT 2026/2027 dos comerciários de São Paulo, cláusula 15ª"
+              ajuda="sai no memorial como origem da multa"
               erro={
                 estado.multa.clausula.trim() === ""
-                  ? "Sem a cláusula a multa não entra no cálculo."
+                  ? "Sem a identificação da convenção a multa não entra no cálculo."
                   : undefined
               }
             />
@@ -1640,9 +1592,43 @@ function AbaCriterios({
                 ajuda="zero significa sem teto"
               />
             </Grade>
+
+            <div className="flex flex-wrap items-end gap-2 rounded-xl border border-borda bg-superficie-2/60 p-3">
+              <CampoTexto
+                rotulo="Guardar esta cláusula para reutilizar"
+                valor={nomeParaSalvar}
+                aoMudar={setNomeParaSalvar}
+                placeholder="dê um nome, ex.: Comerciários SP 2026"
+                className="min-w-[220px] flex-1"
+                ajuda="fica só neste navegador e volta com um clique no menu acima"
+              />
+              <div className="flex gap-2 pb-5">
+                <Botao
+                  tamanho="pequeno"
+                  aoClicar={salvarClausula}
+                  desabilitado={!nomeParaSalvar.trim() || !estado.multa.clausula.trim()}
+                >
+                  Salvar
+                </Botao>
+                {salvaAtual && (
+                  <Botao aparencia="perigo" tamanho="pequeno" aoClicar={excluirSalva}>
+                    Excluir salva
+                  </Botao>
+                )}
+              </div>
+            </div>
           </div>
         )}
-        <div className="mt-4">
+        <div className="mt-4 space-y-2">
+          <NotaLegal titulo="Por que o menu não traz todas as convenções">
+            São milhares de convenções e acordos coletivos no país, renovados todo ano, um para
+            cada categoria e região. Uma cláusula errada num documento que serve de evidência é
+            pior do que nenhuma. Por isso o menu traz os formatos que se repetem nas convenções,
+            que preenchem o cálculo, e a identificação da sua convenção continua sendo digitada
+            uma única vez: salve-a com um nome e ela volta pronta nas próximas apurações. A
+            convenção da sua categoria está registrada no sistema Mediador, do Ministério do
+            Trabalho e Emprego, e costuma estar no site do sindicato.
+          </NotaLegal>
           <NotaLegal titulo="O que a lei prevê e o que não prevê">
             A CLT não cria multa automática em favor do empregado pelo atraso do salário mensal. A
             multa do art. 477, §8º, é das verbas rescisórias, e a do art. 467 vale para a parcela

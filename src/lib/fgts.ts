@@ -15,7 +15,14 @@
  * demais encargos.
  */
 
-import { chaveMesDaData, diferencaEmDias, paraISO, paraUTC, type DataISO } from "./data";
+import {
+  chaveMesDaData,
+  diferencaEmDias,
+  ehDataISO,
+  paraISO,
+  paraUTC,
+  type DataISO,
+} from "./data";
 import { arredondar, type Centavos } from "./dinheiro";
 import { mapaDeFeriados } from "./feriados";
 
@@ -78,6 +85,9 @@ export function apurarFGTS(
   const aliquota = parametros.aprendiz ? ALIQUOTA_FGTS_APRENDIZ : ALIQUOTA_FGTS;
   const deposito = arredondar(Math.max(0, remuneracaoCentavos) * aliquota);
   const dataFinal = parametros.dataRecolhimento || parametros.dataApuracao;
+  if (!ehDataISO(dataFinal)) {
+    throw new Error(`Data inválida na apuração do FGTS: "${dataFinal}".`);
+  }
   const dias = Math.max(0, diferencaEmDias(vencimento, dataFinal));
   const mesesOuFracao = dias > 0 ? Math.ceil(dias / 30) : 0;
   const juros = dias > 0 ? arredondar(deposito * 0.005 * mesesOuFracao) : 0;

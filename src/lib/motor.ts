@@ -17,6 +17,7 @@ import {
   chaveMesDaData,
   diasNoMes,
   diferencaEmDias,
+  ehDataISO,
   formatarCompetencia,
   intervaloDeMeses,
   proximoMes,
@@ -81,7 +82,9 @@ function jurosDoPeriodo(
   juros: Parametros["juros"],
 ): { centavos: Centavos; mesesSemTaxa: string[] } {
   const dias = diferencaEmDias(vencimento, ate);
-  if (dias <= 0 || valor <= 0 || !juros.ativo) return { centavos: 0, mesesSemTaxa: [] };
+  if (!Number.isFinite(dias) || dias <= 0 || valor <= 0 || !juros.ativo) {
+    return { centavos: 0, mesesSemTaxa: [] };
+  }
 
   if (juros.modo === "fixa") {
     if (juros.taxaMesPct <= 0) return { centavos: 0, mesesSemTaxa: [] };
@@ -316,11 +319,35 @@ export interface ExtrasApuracao {
   fgts?: EncargoFGTS[];
 }
 
+/**
+ * Data inválida em qualquer ponto vira NaN silencioso no total. Falhar alto
+ * aqui é melhor do que imprimir "R$ NaN" num memorial.
+ */
+function exigirDatasValidas(
+  competencias: Competencia[],
+  parametros: Parametros,
+  obrigacoes: Obrigacao[],
+) {
+  const invalida = (data: string, onde: string) => {
+    if (!ehDataISO(data)) throw new Error(`Data inválida em ${onde}: "${data}".`);
+  };
+  invalida(parametros.dataApuracao, "data de apuração");
+  competencias.forEach((c) =>
+    c.pagamentos.forEach((p) => invalida(p.data, `pagamento da competência ${c.ano}-${c.mes}`)),
+  );
+  obrigacoes.forEach((o) => {
+    invalida(o.vencimento, `vencimento de ${o.rotulo}`);
+    o.pagamentos.forEach((p) => invalida(p.data, `pagamento de ${o.rotulo}`));
+  });
+  parametros.calendario.locais.forEach((f) => invalida(f.data, "feriado local"));
+}
+
 export function apurar(
   competencias: Competencia[],
   parametros: Parametros,
   extras: ExtrasApuracao = {},
 ): Apuracao {
+  exigirDatasValidas(competencias, parametros, extras.obrigacoes ?? []);
   const apuradas = competencias
     .filter((c) => c.salarioCentavos > 0)
     .map((c) => apurarCompetencia(c, parametros))

@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 
 import { formatarMoeda, lerValorEmCentavos } from "@/lib/dinheiro";
 
@@ -114,9 +114,26 @@ export function CampoTexto({
   );
 }
 
+/** "3250,75" enquanto se digita; "3.250,75" depois que o campo é deixado. */
+function formatarParaCampo(centavos: number | null): string {
+  if (centavos === null) return "";
+  return new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(centavos / 100);
+}
+
 /**
- * Campo de dinheiro: aceita o que a pessoa digitar e normaliza ao sair do
- * campo. O estado guarda centavos inteiros; o texto é só a camada de digitação.
+ * Campo de dinheiro.
+ *
+ * O texto digitado mora aqui dentro enquanto a pessoa escreve; o pai recebe os
+ * centavos a cada tecla, mas nunca dita o texto durante a edição. A versão
+ * anterior remontava o input a cada mudança de valor, o que roubava o foco
+ * depois do primeiro dígito e tornava impossível digitar um número inteiro.
+ *
+ * Quando o valor muda por fora (carregar rascunho, "Ver exemplo", outra aba) e
+ * o campo não está em edição, o texto é resincronizado no próprio render, que
+ * é o padrão recomendado pelo React para estado derivado de prop.
  */
 export function CampoMoeda({
   centavos,
@@ -129,6 +146,15 @@ export function CampoMoeda({
   placeholder?: string;
 }) {
   const id = useId();
+  const [texto, setTexto] = useState(() => formatarParaCampo(centavos));
+  const [emEdicao, setEmEdicao] = useState(false);
+  const [valorVisto, setValorVisto] = useState(centavos);
+
+  if (centavos !== valorVisto) {
+    setValorVisto(centavos);
+    if (!emEdicao) setTexto(formatarParaCampo(centavos));
+  }
+
   return (
     <Envelope {...base} id={id}>
       <div className="relative">
@@ -137,15 +163,27 @@ export function CampoMoeda({
         </span>
         <input
           id={id}
+          type="text"
           inputMode="decimal"
-          defaultValue={centavos === null ? "" : (centavos / 100).toFixed(2).replace(".", ",")}
-          key={centavos === null ? "vazio" : String(centavos)}
+          autoComplete="off"
+          value={texto}
           placeholder={placeholder}
-          onBlur={(e) => aoMudar(lerValorEmCentavos(e.target.value))}
+          onFocus={() => setEmEdicao(true)}
           onChange={(e) => {
-            const lido = lerValorEmCentavos(e.target.value);
+            const digitado = e.target.value;
+            setTexto(digitado);
+            if (digitado.trim() === "") {
+              aoMudar(null);
+              return;
+            }
+            const lido = lerValorEmCentavos(digitado);
             if (lido !== null) aoMudar(lido);
-            else if (e.target.value.trim() === "") aoMudar(null);
+          }}
+          onBlur={() => {
+            setEmEdicao(false);
+            const lido = texto.trim() === "" ? null : lerValorEmCentavos(texto);
+            setTexto(formatarParaCampo(lido));
+            aoMudar(lido);
           }}
           className={`${ESTILO_ENTRADA} pl-9 text-right tabular-nums`}
           aria-invalid={base.erro ? true : undefined}
@@ -217,6 +255,51 @@ export function Selecao<T extends string>({
             {o.rotulo}
           </option>
         ))}
+      </select>
+    </Envelope>
+  );
+}
+
+/**
+ * Seleção com grupos. O select nativo rola sozinho quando a lista cresce e
+ * funciona igual no celular, no teclado e no leitor de tela.
+ */
+export function SelecaoAgrupada({
+  valor,
+  grupos,
+  aoMudar,
+  ...base
+}: BaseCampo & {
+  valor: string;
+  grupos: { rotulo: string; opcoes: { valor: string; rotulo: string }[] }[];
+  aoMudar: (valor: string) => void;
+}) {
+  const id = useId();
+  return (
+    <Envelope {...base} id={id}>
+      <select
+        id={id}
+        value={valor}
+        onChange={(e) => aoMudar(e.target.value)}
+        className={ESTILO_ENTRADA}
+      >
+        {grupos.map((grupo) =>
+          grupo.rotulo ? (
+            <optgroup key={grupo.rotulo} label={grupo.rotulo}>
+              {grupo.opcoes.map((o) => (
+                <option key={o.valor} value={o.valor}>
+                  {o.rotulo}
+                </option>
+              ))}
+            </optgroup>
+          ) : (
+            grupo.opcoes.map((o) => (
+              <option key={o.valor} value={o.valor}>
+                {o.rotulo}
+              </option>
+            ))
+          ),
+        )}
       </select>
     </Envelope>
   );
