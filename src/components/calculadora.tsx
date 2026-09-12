@@ -1016,6 +1016,11 @@ function AbaFerias({
                           aoMudar={(v) => atualizar(item.id, { dias: v })}
                           passo={1}
                           sufixo="dias"
+                          ajuda={
+                            calculo.diasDeFerias !== item.dias
+                              ? `considerados ${calculo.diasDeFerias}: descanso e venda somam no máximo 30`
+                              : "descanso mais dias vendidos não passa de 30"
+                          }
                         />
                         <CampoNumero
                           rotulo="Dias vendidos"

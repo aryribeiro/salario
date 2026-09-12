@@ -165,17 +165,22 @@ function apurarNucleo(
 
   for (const pagamento of ordenados) {
     const aplicado = Math.max(0, Math.min(saldo, pagamento.valorCentavos));
-    const excedente = pagamento.valorCentavos - aplicado;
     saldo -= aplicado;
     const dias = Math.max(0, diferencaEmDias(vencimento, pagamento.data));
+    // Um pagamento que nada amortiza, porque a parcela já estava quitada, não
+    // pode carregar dias de atraso: ele inflava o maior atraso e a multa por
+    // salário-dia de uma competência paga em dia.
     const situacao: PagamentoApurado["situacao"] =
       pagamento.valorCentavos <= 0
         ? "ignorado"
-        : pagamento.data < vencimento
-          ? "adiantado"
-          : pagamento.data === vencimento
-            ? "em dia"
-            : "atrasado";
+        : aplicado === 0
+          ? "excedente"
+          : pagamento.data < vencimento
+            ? "adiantado"
+            : pagamento.data === vencimento
+              ? "em dia"
+              : "atrasado";
+    const excedente = situacao === "ignorado" ? 0 : pagamento.valorCentavos - aplicado;
     const emAtraso = situacao === "atrasado";
     const info = emAtraso
       ? fatorDeCorrecao(vencimento, pagamento.data, parametros)

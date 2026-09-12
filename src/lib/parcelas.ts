@@ -61,8 +61,12 @@ export function calcularRemuneracaoFerias(
   diasVendidos = 0,
 ): RemuneracaoFerias {
   const diaria = Math.max(0, salarioMensalCentavos) / 30;
-  const dias = Math.max(0, Math.min(30, diasDeFerias));
-  const vendidos = Math.max(0, Math.min(10, diasVendidos));
+  const inteiro = (v: number) => (Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0);
+  // Quem vende dias descansa menos: descanso mais venda nunca passa de trinta,
+  // e a venda para em um terço (art. 143 da CLT). Vender é a escolha da
+  // pessoa, então é o descanso que se ajusta.
+  const vendidos = Math.min(10, inteiro(diasVendidos));
+  const dias = Math.min(30 - vendidos, inteiro(diasDeFerias));
   const ferias = arredondar(diaria * dias);
   const terco = arredondar(ferias / 3);
   const abono = arredondar(diaria * vendidos);

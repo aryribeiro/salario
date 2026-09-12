@@ -99,7 +99,11 @@ export interface Parametros {
   identificacao: Identificacao;
 }
 
-export type SituacaoPagamento = "adiantado" | "em dia" | "atrasado" | "ignorado";
+/**
+ * "excedente": pagamento feito quando a parcela já estava quitada. Não gera
+ * atraso nem encargo; fica registrado para quem lê saber que o dinheiro entrou.
+ */
+export type SituacaoPagamento = "adiantado" | "em dia" | "atrasado" | "excedente" | "ignorado";
 
 export interface PagamentoApurado {
   id: string;

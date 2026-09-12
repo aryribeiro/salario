@@ -99,7 +99,9 @@ function LinhaDetalhe({
                         ? "adiantamento"
                         : p.situacao === "em dia"
                           ? "no prazo"
-                          : "sem valor"}
+                          : p.situacao === "excedente"
+                            ? "além do devido"
+                            : "sem valor"}
                   </td>
                   <td className="py-1.5 text-right">{p.diasAtraso > 0 ? `${p.diasAtraso} d` : "—"}</td>
                   <td className="py-1.5 text-right">{formatarMoeda(p.valorAplicadoCentavos)}</td>

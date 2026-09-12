@@ -70,10 +70,24 @@ describe("férias", () => {
     expect(r.totalCentavos).toBe(400_000);
   });
 
-  it("limita a venda a dez dias e as férias a trinta", () => {
+  it("limita a venda a dez dias e o total a trinta", () => {
     const r = calcularRemuneracaoFerias(300_000, 45, 20);
-    expect(r.diasDeFerias).toBe(30);
     expect(r.diasVendidos).toBe(10);
+    expect(r.diasDeFerias).toBe(20);
+    expect(r.totalCentavos).toBe(400_000);
+  });
+
+  it("trinta dias de descanso com dez vendidos viram vinte de descanso, não quarenta pagos", () => {
+    // Defeito apontado na auditoria de 12/09: saía 533.333 (40 dias com terço).
+    const r = calcularRemuneracaoFerias(300_000, 30, 10);
+    expect(r.diasDeFerias).toBe(20);
+    expect(r.diasVendidos).toBe(10);
+    expect(r.totalCentavos).toBe(400_000);
+  });
+
+  it("entrada não numérica não vira NaN", () => {
+    const r = calcularRemuneracaoFerias(300_000, Number.NaN, 0);
+    expect(r.totalCentavos).toBe(0);
   });
 });
 

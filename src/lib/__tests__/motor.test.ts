@@ -191,6 +191,48 @@ describe("apuração de uma competência", () => {
     expect(r.excedenteCentavos).toBe(20_000);
   });
 
+  it("pagamento feito depois de quitar não carrega atraso nem infla a multa", () => {
+    // Defeito apontado na auditoria de 12/09: o extra posterior recebia os
+    // dias cheios e a multa por salário-dia saía em 933,33 em vez de 133,33.
+    const parametros: Parametros = {
+      ...parametrosBase,
+      multa: { ...parametrosBase.multa, tipo: "salarioDia", valor: 1 },
+    };
+    const r = apurarCompetencia(
+      competencia({
+        salarioCentavos: 100_000,
+        pagamentos: [
+          { id: "p1", data: "2026-02-06", valorCentavos: 90_000 },
+          { id: "p2", data: "2026-02-10", valorCentavos: 10_000 },
+          { id: "p3", data: "2026-03-06", valorCentavos: 50_000 },
+        ],
+      }),
+      parametros,
+    );
+    expect(r.pagamentos[2]!.situacao).toBe("excedente");
+    expect(r.pagamentos[2]!.diasAtraso).toBe(0);
+    expect(r.pagamentos[2]!.excedenteCentavos).toBe(50_000);
+    expect(r.maiorAtrasoDias).toBe(4);
+    // salário-dia 3.333,33 x 4 dias
+    expect(r.multaCentavos).toBe(13_333);
+  });
+
+  it("competência paga em dia com um extra depois continua 'em dia'", () => {
+    const r = apurarCompetencia(
+      competencia({
+        salarioCentavos: 100_000,
+        pagamentos: [
+          { id: "p1", data: "2026-02-06", valorCentavos: 100_000 },
+          { id: "p2", data: "2026-03-06", valorCentavos: 50_000 },
+        ],
+      }),
+      parametrosBase,
+    );
+    expect(r.quitadaNoPrazo).toBe(true);
+    expect(r.maiorAtrasoDias).toBe(0);
+    expect(r.totalDevidoCentavos).toBe(0);
+  });
+
   it("multa por salário-dia multiplica o maior atraso da competência", () => {
     const r = apurarCompetencia(
       competencia({

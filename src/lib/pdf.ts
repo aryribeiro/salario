@@ -596,7 +596,9 @@ function secaoCompetencia(p: Pincel, c: ItemApurado, apuracao: Apuracao) {
         ? "adiantamento"
         : pg.situacao === "em dia"
           ? "pago no prazo"
-          : "sem valor",
+          : pg.situacao === "excedente"
+            ? "além do devido"
+            : "sem valor",
     pg.diasAtraso > 0 ? String(pg.diasAtraso) : "-",
     formatarNumero(pg.valorAplicadoCentavos),
     pg.jurosCentavos > 0 ? formatarNumero(pg.jurosCentavos) : "-",
