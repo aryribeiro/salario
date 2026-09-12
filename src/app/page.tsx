@@ -1,4 +1,4 @@
-import { Calculadora } from "@/components/calculadora";
+import { CalculadoraCliente } from "@/components/calculadora-cliente";
 
 const PERGUNTAS: { pergunta: string; resposta: string }[] = [
   {
@@ -36,7 +36,7 @@ const PERGUNTAS: { pergunta: string; resposta: string }[] = [
 export default function Pagina() {
   return (
     <main>
-      <Calculadora />
+      <CalculadoraCliente />
 
       <section className="mx-auto w-full max-w-6xl px-4 pb-8 sm:px-6">
         <h2 className="mb-4 text-lg font-semibold text-texto">Perguntas frequentes</h2>
