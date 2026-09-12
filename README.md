@@ -80,6 +80,12 @@ mês e nenhuma multa. Nesta aba você pode mudar a data até onde os juros corre
 legal que varia mês a mês, ligar a multa da convenção coletiva da sua categoria, ligar a
 correção monetária e ajustar a região dos feriados, que vem em São Paulo capital.
 
+Na multa, o menu **Cláusula** traz os formatos que mais aparecem nas convenções, como um
+trinta avos do salário por dia de atraso ou um percentual sobre o valor pago fora do prazo.
+Escolha um formato, escreva de qual convenção ele vem e clique em **Salvar** com um nome: nas
+próximas apurações a cláusula volta pronta no mesmo menu. A multa alcança só o salário, a não
+ser que você ligue a chave que a estende a férias e 13º.
+
 ### Dicas que economizam tempo
 
 - **Não sabe por onde começar?** Clique em **Ver exemplo**, no alto da página, e veja a
@@ -108,12 +114,13 @@ correção monetária e ajustar a região dos feriados, que vem em São Paulo ca
   constitucional e abono pecuniário.
 - **Décimo terceiro.** Primeira parcela até 30 de novembro e segunda até 20 de dezembro,
   antecipando quando a data cai em dia sem expediente bancário.
-- **FGTS.** Depósito de 8% com vencimento no dia 20 do mês seguinte, juros de 0,5% ao mês
-  ou fração e multa de 5% ou 10%, na forma do art. 22 da Lei 8.036/1990.
+- **FGTS.** Depósito de 8% com vencimento no dia 20 do mês seguinte, juros de 0,5% por mês
+  iniciado desde o vencimento e multa de 5% ou 10%, na forma do art. 22 da Lei 8.036/1990.
 - **Dois regimes de juros.** Taxa fixa ao mês, com 1% como padrão, ou a taxa legal do art. 406
   do Código Civil na redação da Lei 14.905/2024, que é a Selic do mês menos o IPCA do mês, com
   piso em zero. No segundo caso cada mês entra com a sua própria taxa, buscada no Banco
-  Central, proporcional aos dias em que a dívida existiu naquele mês.
+  Central, proporcional aos dias em que a dívida existiu naquele mês. Com a correção ligada,
+  os juros incidem sobre o valor já corrigido, como manda a Súmula 200 do TST.
 - **Memorial em PDF.** Documento paginado com identificação, critérios, apuração parcela a
   parcela, resumo financeiro, fundamentação e os limites do próprio documento. Quando os juros
   vêm da taxa legal, o memorial imprime a taxa aplicada em cada mês.
@@ -129,8 +136,16 @@ correção monetária e ajustar a região dos feriados, que vem em São Paulo ca
   período concessivo.
 - **Não reduz a dívida por deflação.** Em período de índice negativo a correção é tratada
   como zero.
-- **Não conclui direito.** Três ou mais parcelas em atraso aparecem como fato apurado, com
+- **Não conclui direito.** Três ou mais salários em atraso aparecem como fato apurado, com
   a referência ao Decreto-Lei 368/1968 e ao art. 483 da CLT, sem enquadrar a situação.
+- **Não cobra mora antes do vencimento.** Uma parcela que ainda vai vencer na data da
+  apuração aparece como "a vencer" e fica fora do total, pelo art. 397 do Código Civil.
+- **Não dá por pago o que ainda não aconteceu.** Pagamento com data posterior à apuração é
+  registrado, mas não quita nada, e a tela avisa.
+- **Não estende a multa da convenção a férias e 13º por conta própria.** Só com a chave que o
+  usuário liga, e o memorial declara a escolha.
+- **Não dobra o abono pecuniário.** Nas férias fora do período concessivo, a dobra do art.
+  137 alcança férias e terço; a venda de dias fica fora dela.
 
 ## Privacidade
 
@@ -166,7 +181,7 @@ Toda regra do motor de cálculo nasce de uma destas fontes. Os endereços foram 
 
 | Regra no aplicativo | Fonte |
 |---|---|
-| Correção monetária do salário pago depois do 5º dia útil, a partir do dia 1º do mês subsequente (Súmula 381); dobra dos dias gozados fora do período de concessão (Súmula 81) | [Súmulas do TST](https://www.tst.jus.br/sumulas) |
+| Correção monetária do salário pago depois do 5º dia útil, a partir do dia 1º do mês subsequente (Súmula 381); juros de mora sobre a importância já corrigida (Súmula 200); dobra dos dias gozados fora do período de concessão (Súmula 81) | [Súmulas do TST](https://www.tst.jus.br/sumulas) |
 | Férias pagas com atraso **não** dobram: a Súmula 450 do TST foi declarada inconstitucional | Supremo Tribunal Federal, ADPF 501, julgada em 16 de setembro de 2022 |
 | Índices de atualização dos créditos trabalhistas | Supremo Tribunal Federal, ADC 58 e ADC 59, julgadas em dezembro de 2020 |
 | Não incide imposto de renda sobre juros de mora por atraso no pagamento de remuneração | Supremo Tribunal Federal, Tema 808 (RE 855.091), e [Superior Tribunal de Justiça, Tema 878](https://www.stj.jus.br/sites/portalp/Paginas/Comunicacao/Noticias/17112021-Nao-ha-incidencia-de-IR-sobre-juros-de-mora-no-pagamento-de-verba-alimentar-a-pessoa-fisica--.aspx) |
@@ -222,7 +237,7 @@ fora, e o memorial declara isso.
 ```bash
 npm install
 npm run dev        # http://localhost:3000
-npm test           # 74 testes: motor, tributos, parcelas, documentos e PDF
+npm test           # 97 testes: motor, tributos, parcelas, documentos, rascunho e PDF
 npm run typecheck
 npm run build
 ```
@@ -240,6 +255,8 @@ src/lib/         motor de cálculo puro, sem React
   fgts.ts        encargos do FGTS em atraso
   tributos.ts    tabelas de INSS e imposto de renda de 2026
   documentos.ts  CNPJ numérico e alfanumérico, e CPF
+  clausulas.ts   formatos de multa que se repetem nas convenções
+  rascunho.ts    o que fica salvo no navegador, versionado e normalizado
   pdf.ts         memorial de cálculo
 src/components/  interface
 src/app/api/indices  ponte com o Banco Central
